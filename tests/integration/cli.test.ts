@@ -14,6 +14,7 @@ describe("built CLI", () => {
 
         await exec(process.execPath, [cli, "init"], {
             env: { ...process.env, HOME: home },
+            cwd: home,
         });
 
         await expect(
@@ -46,15 +47,18 @@ describe("built CLI", () => {
             PATH: `${bin}:${process.env.PATH}`,
             AGENTIAM_TEST_OUTPUT: output,
         };
-        const inspected = await exec(process.execPath, [cli, "inspect"], {
-            env,
-        });
+        const execOptions = { env, cwd: home };
+        const inspected = await exec(
+            process.execPath,
+            [cli, "inspect"],
+            execOptions,
+        );
         expect(inspected.stdout).toContain("Default: DENY");
         expect(inspected.stdout).toContain("git.commit");
         const allowed = await exec(
             process.execPath,
             [cli, "run", "--", "sh", "-c", "git commit -m cli-test"],
-            { env },
+            execOptions,
         );
         expect(allowed.stdout).toBe("");
         expect(await readFile(output, "utf8")).toBe("commit\n-m\ncli-test\n");
@@ -62,7 +66,7 @@ describe("built CLI", () => {
             exec(
                 process.execPath,
                 [cli, "run", "--", "sh", "-c", "gh pr merge 42"],
-                { env },
+                execOptions,
             ),
         ).rejects.toMatchObject({ code: 126 });
     });

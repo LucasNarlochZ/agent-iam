@@ -13,6 +13,7 @@ export interface RunnerOptions {
     env?: NodeJS.ProcessEnv;
     entrypoint?: string;
     nodePath?: string;
+    cwd?: string;
 }
 
 function wrapper(nodePath: string, entrypoint: string, tool: string): string {
@@ -55,6 +56,7 @@ export async function runWithShims(
         return await new Promise<RunResult>((resolveResult, reject) => {
             const child = spawn(command, args, {
                 env: childEnv,
+                cwd: options.cwd,
                 stdio: "inherit",
             });
             const forward = (signal: NodeJS.Signals) => child.kill(signal);

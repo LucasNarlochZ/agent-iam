@@ -25,6 +25,7 @@ describe("shim runner", () => {
         const result = await runWithShims(agent, [], {
             entrypoint: resolve("dist/index.js"),
             env: { HOME: home, PATH: `${bin}`, AGENTIAM_TEST_OUTPUT: output },
+            cwd: home,
         });
         expect(result).toEqual({ code: 0, signal: null });
         expect(await readFile(output, "utf8")).toBe(
