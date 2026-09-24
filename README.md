@@ -63,8 +63,8 @@ Tau Prolog runs embedded inside the Node.js process. No system Prolog installati
 Install the scoped package globally or run it directly with npx:
 
 ```bash
-npm install --global @lucasnarz/agent-iam
-npx @lucasnarz/agent-iam inspect
+npm install --global @agentiam-dev/core
+npx @agentiam-dev/core inspect
 ```
 
 The package installs the `agentiam` executable used in the examples below.
