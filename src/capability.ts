@@ -1,4 +1,5 @@
 export interface ConstraintMap {
+    aws: Record<string, never>;
     git: {
         paths?: string[];
         branches?: string[];

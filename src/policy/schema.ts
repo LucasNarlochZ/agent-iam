@@ -34,18 +34,22 @@ const registry = {
 type ServiceOf = keyof typeof registry;
 type ActionOf<S extends ServiceOf> = keyof (typeof registry)[S]["actions"];
 
-export type CapabilityKey = {
+type RegisteredCapabilityKey = {
     [S in ServiceOf]: `${S}.${ActionOf<S> & string}`;
 }[ServiceOf];
 
+export type CapabilityKey = RegisteredCapabilityKey | `aws.${string}.${string}`;
+
 type DefinitionOf<Key extends CapabilityKey> =
-    Key extends `${infer Service}.${infer Action}`
-        ? Service extends ServiceOf
-            ? Action extends ActionOf<Service>
-                ? (typeof registry)[Service]["actions"][Action]
-                : never
-            : never
-        : never;
+    Key extends `aws.${string}.${string}`
+        ? { constraints: readonly [] }
+        : Key extends `${infer Service}.${infer Action}`
+          ? Service extends ServiceOf
+              ? Action extends ActionOf<Service>
+                  ? (typeof registry)[Service]["actions"][Action]
+                  : never
+              : never
+          : never;
 
 export type PolicyRule<Key extends CapabilityKey = CapabilityKey> =
     true | Partial<Record<DefinitionOf<Key>["constraints"][number], string[]>>;
@@ -65,6 +69,14 @@ function definitionFor(
     capability: string,
 ): { constraints: readonly string[] } | undefined {
     const [service, ...actionParts] = capability.split(".");
+    if (service === "aws") {
+        return actionParts.length === 2 &&
+            actionParts.every(
+                (part) => part !== "unknown" && /^[a-z0-9_-]+$/.test(part),
+            )
+            ? { constraints: [] }
+            : undefined;
+    }
     if (service !== "git" && service !== "github") return undefined;
     const action = actionParts.join(".");
     return registry[service].actions[action as never];

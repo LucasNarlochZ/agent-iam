@@ -14,7 +14,7 @@ Agents increasingly execute actions outside their own process. A command such as
 Agent process
     |
     v
-PATH shims for git and gh
+PATH shims for git, gh, and aws
     |
     v
 Canonical capability normalizer
@@ -33,28 +33,30 @@ The MVP supports POSIX systems such as Linux and macOS. It uses temporary execut
 
 ## Capability Normalization
 
-The first release intercepts `git` and `gh`. A Git subcommand maps to `git.<command>`, while a GitHub CLI group and command map to `github.<group>.<command>`.
+Agent IAM intercepts `git`, `gh`, and `aws`. A Git subcommand maps to `git.<command>`, a GitHub CLI group and command maps to `github.<group>.<command>`, and an AWS CLI service and operation maps to `aws.<service>.<operation>`.
 
 Examples:
 
-| Command            | Capability         |
-| ------------------ | ------------------ |
-| `git commit`       | `git.commit`       |
-| `git remote`       | `git.remote`       |
-| `git config`       | `git.config`       |
-| `git symbolic-ref` | `git.symbolic-ref` |
-| `git push`         | `git.push`         |
-| `gh pr create`     | `github.pr.create` |
-| `gh pr view`       | `github.pr.view`   |
-| `gh pr merge`      | `github.pr.merge`  |
+| Command                       | Capability                        |
+| ----------------------------- | --------------------------------- |
+| `git commit`                  | `git.commit`                      |
+| `git remote`                  | `git.remote`                      |
+| `git config`                  | `git.config`                      |
+| `git symbolic-ref`            | `git.symbolic-ref`                |
+| `git push`                    | `git.push`                        |
+| `gh pr create`                | `github.pr.create`                |
+| `gh pr view`                  | `github.pr.view`                  |
+| `gh pr merge`                 | `github.pr.merge`                 |
+| `aws sts get-caller-identity` | `aws.sts.get-caller-identity`     |
+| `aws s3 cp`                   | `aws.s3.cp`                       |
 
-Unknown command structures are normalized deterministically and denied unless explicitly allowed.
+Unknown command structures are normalized deterministically and denied.
 
 ## Requirements
 
 - Node.js 20 or newer
 - A POSIX shell
-- `git` and/or `gh` installed when those tools are used
+- `git`, `gh`, and/or `aws` installed when those tools are used
 
 Tau Prolog runs embedded inside the Node.js process. No system Prolog installation is required.
 
@@ -83,6 +85,7 @@ Agent IAM reads the global user policy at `~/.agentiam/policy.yaml`. Define allo
 
 ```yaml
 allow:
+  aws.sts.get-caller-identity: true
   git.commit: true
   git.remote: true
   git.config: true
@@ -90,6 +93,7 @@ allow:
   github.pr.create: true
   github.pr.view: true
 deny:
+  aws.s3.rm: true
   git.push: true
   github.pr.merge: true
 ```
@@ -134,7 +138,7 @@ Choose an action:
 
 The prompt can add an unrestricted allow, add an allow for the current repository, branch, or staged paths, add an explicit deny, or leave the policy unchanged. The selection updates `~/.agentiam/policy.yaml`.
 
-An approval only saves the rule; it does not execute the denied command. Retry the command to use the updated policy. Existing explicit denies do not prompt. Non-interactive sessions, unsupported capabilities, invalid policies, and audit failures continue to deny without prompting.
+An approval only saves the rule; it does not execute the denied command. Retry the command to use the updated policy. Existing explicit denies do not prompt. Non-interactive sessions, unsupported capabilities, invalid policies, and audit failures continue to deny without prompting. AWS approvals are capability-wide because AWS resource constraints are not yet extracted.
 
 ## Commands
 
@@ -196,7 +200,7 @@ Each line is a JSON object containing the timestamp, structured capability, deci
 - Real binaries are resolved only from the original `PATH`, preventing wrapper recursion.
 - Arguments are passed as an array and are not reconstructed through a shell.
 
-Agent IAM is an authorization shim, not a complete sandbox. An agent can still perform actions not covered by `git` or `gh`, and a process can bypass the shim by deliberately changing its environment or invoking another tool. MCP and HTTP adapters, quotas, skill scopes, general policy editing, a central control plane, physical sandboxing, and native Windows support are outside this MVP.
+Agent IAM is an authorization shim, not a complete sandbox. An agent can still perform actions not covered by `git`, `gh`, or `aws`, and a process can bypass the shim by deliberately changing its environment or invoking another tool. MCP and HTTP adapters, quotas, skill scopes, general policy editing, a central control plane, physical sandboxing, and native Windows support are outside this MVP.
 
 ## Development
 

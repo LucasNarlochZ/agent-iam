@@ -16,7 +16,7 @@ import {
 import type { CanonicalCapability } from "./capability.js";
 
 export interface ShimOptions {
-    tool: "git" | "gh";
+    tool: "git" | "gh" | "aws";
     args: string[];
     env: NodeJS.ProcessEnv;
     cwd?: string;

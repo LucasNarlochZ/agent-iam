@@ -30,6 +30,12 @@ describe("policy schema", () => {
             allow: { "github.pr.list": { repos: ["owner/repo"] } },
             deny: {},
         });
+        expect(
+            parsePolicy("allow:\n  aws.sts.get-caller-identity: true\n"),
+        ).toEqual({
+            allow: { "aws.sts.get-caller-identity": true },
+            deny: {},
+        });
     });
 
     it("rejects invalid policy entries", () => {
@@ -220,5 +226,24 @@ describe("policy engine", () => {
                 reason: "matched allow rule",
             });
         }
+    });
+
+    it("applies AWS rules in the example policy", async () => {
+        const source = await readFile(
+            new URL("../../examples/policy.yaml", import.meta.url),
+            "utf8",
+        );
+        const policy = parsePolicy(source);
+
+        await expect(
+            evaluatePolicy(policy, "aws.sts.get-caller-identity"),
+        ).resolves.toEqual({
+            decision: "ALLOW",
+            reason: "matched allow rule",
+        });
+        await expect(evaluatePolicy(policy, "aws.s3.rm")).resolves.toEqual({
+            decision: "DENY",
+            reason: "matched deny rule",
+        });
     });
 });

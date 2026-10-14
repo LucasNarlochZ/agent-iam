@@ -20,16 +20,18 @@ function constraintTerms(capability: CanonicalCapability): string {
                       `constraint(repos, '${escapePrologAtom(capability.constraints.repository)}')`,
                   ]
                 : []
-            : [
-                  ...(capability.constraints?.paths ?? []).map(
-                      (path) =>
-                          `constraint(paths, '${escapePrologAtom(path)}')`,
-                  ),
-                  ...(capability.constraints?.branches ?? []).map(
-                      (branch) =>
-                          `constraint(branches, '${escapePrologAtom(branch)}')`,
-                  ),
-              ];
+            : capability.service === "git"
+              ? [
+                    ...(capability.constraints?.paths ?? []).map(
+                        (path) =>
+                            `constraint(paths, '${escapePrologAtom(path)}')`,
+                    ),
+                    ...(capability.constraints?.branches ?? []).map(
+                        (branch) =>
+                            `constraint(branches, '${escapePrologAtom(branch)}')`,
+                    ),
+                ]
+              : [];
     return `[${constraints.join(", ")}]`;
 }
 

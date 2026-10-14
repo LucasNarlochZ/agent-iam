@@ -17,6 +17,7 @@ function contextLabel(capability: CanonicalCapability): string | undefined {
             ? `repository ${capability.constraints.repository}`
             : undefined;
     }
+    if (capability.service === "aws") return undefined;
     if (capability.constraints?.paths?.length) {
         return `paths ${capability.constraints.paths.join(", ")}`;
     }
@@ -81,6 +82,7 @@ function contextualRule(
             ? { repos: [capability.constraints.repository] }
             : undefined;
     }
+    if (capability.service === "aws") return undefined;
     if (capability.constraints?.paths?.length) {
         return { paths: capability.constraints.paths };
     }

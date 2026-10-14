@@ -9,7 +9,7 @@ export interface AuditRecord {
     timestamp: string;
     capability: CanonicalCapability;
     decision: Decision;
-    tool: "git" | "gh";
+    tool: "git" | "gh" | "aws";
     arguments: string[];
     command: string;
     policyPath: string;

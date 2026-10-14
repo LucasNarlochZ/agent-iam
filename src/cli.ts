@@ -110,7 +110,7 @@ export async function main(
         const tool = args[1];
         const separator = args.indexOf("--");
         if (
-            (tool !== "git" && tool !== "gh") ||
+            (tool !== "git" && tool !== "gh" && tool !== "aws") ||
             separator < 0 ||
             separator < 2
         ) {

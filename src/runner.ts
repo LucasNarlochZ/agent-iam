@@ -43,7 +43,7 @@ export async function runWithShims(
     };
     try {
         await Promise.all(
-            ["git", "gh"].map(async (tool) => {
+            ["git", "gh", "aws"].map(async (tool) => {
                 const path = join(directory, tool);
                 await writeFile(
                     path,

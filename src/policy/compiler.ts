@@ -13,7 +13,7 @@ export function compilePolicy(policy: Policy): string {
     );
     const constraints = (["allow", "deny"] as const).flatMap((kind) =>
         Object.entries(policy[kind]).flatMap(([capability, rule]) => {
-            if (rule === true) return [];
+            if (!rule || rule === true) return [];
             return Object.entries(rule).flatMap(([name, values]) =>
                 values.map(
                     (value) =>
