@@ -119,6 +119,23 @@ deny:
 
 An invalid directory policy fails closed and denies the action.
 
+### Interactive Approvals
+
+When a supported capability has no matching allow rule, Agent IAM prompts for a policy update if standard input and standard error are attached to a TTY:
+
+```text
+[agentiam] github.pr.merge was denied.
+  1) Allow this capability
+  2) Allow for repository owner/repo
+  3) Explicitly deny
+  4) Skip
+Choose an action:
+```
+
+The prompt can add an unrestricted allow, add an allow for the current repository, branch, or staged paths, add an explicit deny, or leave the policy unchanged. The selection updates `~/.agentiam/policy.yaml`.
+
+An approval only saves the rule; it does not execute the denied command. Retry the command to use the updated policy. Existing explicit denies do not prompt. Non-interactive sessions, unsupported capabilities, invalid policies, and audit failures continue to deny without prompting.
+
 ## Commands
 
 Initialize the user policy:
@@ -179,7 +196,7 @@ Each line is a JSON object containing the timestamp, structured capability, deci
 - Real binaries are resolved only from the original `PATH`, preventing wrapper recursion.
 - Arguments are passed as an array and are not reconstructed through a shell.
 
-Agent IAM is an authorization shim, not a complete sandbox. An agent can still perform actions not covered by `git` or `gh`, and a process can bypass the shim by deliberately changing its environment or invoking another tool. MCP and HTTP adapters, approval prompts, quotas, skill scopes, policy editing, a central control plane, physical sandboxing, and native Windows support are outside this MVP.
+Agent IAM is an authorization shim, not a complete sandbox. An agent can still perform actions not covered by `git` or `gh`, and a process can bypass the shim by deliberately changing its environment or invoking another tool. MCP and HTTP adapters, quotas, skill scopes, general policy editing, a central control plane, physical sandboxing, and native Windows support are outside this MVP.
 
 ## Development
 

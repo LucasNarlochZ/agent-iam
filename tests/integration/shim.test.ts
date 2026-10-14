@@ -1,6 +1,7 @@
 import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Writable } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { runShim } from "../../src/shim.js";
 
@@ -134,9 +135,81 @@ describe("command shim", () => {
                 AGENTIAM_TEST_OUTPUT: output,
             },
             cwd,
+            promptForApproval: async () => {
+                throw new Error("explicit denies must not prompt");
+            },
         });
         expect(code).toBe(126);
         await expect(readFile(output, "utf8")).rejects.toThrow();
+    });
+
+    it("does not prompt for capabilities that cannot be stored in policy", async () => {
+        const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
+        const bin = await mkdtemp(join(tmpdir(), "agentiam-shim-bin-"));
+        await fakeTool(bin, "gh");
+        await mkdir(join(home, ".agentiam"));
+        await writeFile(
+            join(home, ".agentiam", "policy.yaml"),
+            "allow: {}\ndeny: {}\n",
+        );
+        let prompted = false;
+
+        const code = await runShim({
+            tool: "gh",
+            args: ["auth", "status"],
+            env: {
+                HOME: home,
+                PATH: bin,
+                AGENTIAM_ORIGINAL_PATH: bin,
+            },
+            promptForApproval: async () => {
+                prompted = true;
+                return "allow";
+            },
+        });
+
+        expect(code).toBe(126);
+        expect(prompted).toBe(false);
+    });
+
+    it("saves a repository-scoped allow after interactive approval without executing the denied command", async () => {
+        const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
+        const bin = await mkdtemp(join(tmpdir(), "agentiam-shim-bin-"));
+        const cwd = await mkdtemp(join(tmpdir(), "agentiam-shim-cwd-"));
+        const output = join(home, "args.txt");
+        let messages = "";
+        const stderr = new Writable({
+            write(chunk, _encoding, callback) {
+                messages += chunk.toString();
+                callback();
+            },
+        });
+        await fakeTool(bin, "gh");
+        await mkdir(join(home, ".agentiam"));
+        const policyPath = join(home, ".agentiam", "policy.yaml");
+        await writeFile(policyPath, "allow: {}\ndeny: {}\n");
+
+        const code = await runShim({
+            tool: "gh",
+            args: ["--repo", "owner/repo", "pr", "merge", "42"],
+            env: {
+                HOME: home,
+                PATH: bin,
+                AGENTIAM_ORIGINAL_PATH: bin,
+                AGENTIAM_TEST_OUTPUT: output,
+            },
+            cwd,
+            stderr,
+            promptForApproval: async () => "allow-context",
+        });
+
+        expect(code).toBe(126);
+        await expect(readFile(output, "utf8")).rejects.toThrow();
+        expect(await readFile(policyPath, "utf8")).toContain(
+            "github.pr.merge:\n    repos:\n      - owner/repo",
+        );
+        expect(messages).toContain("Saved allow rule");
+        expect(messages).toContain("retry the command");
     });
 
     it("enforces repository-scoped GitHub rules before executing gh", async () => {

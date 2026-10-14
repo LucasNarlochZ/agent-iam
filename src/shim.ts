@@ -1,9 +1,19 @@
-import { resolvePolicyPath, loadPolicy } from "./policy/schema.js";
+import {
+    isCapabilityKey,
+    resolvePolicyPath,
+    loadPolicy,
+} from "./policy/schema.js";
 import { evaluatePolicies } from "./policy/engine.js";
 import { appendAuditRecord, renderCommand } from "./audit.js";
 import { resolveExecutable, spawnInherited } from "./process.js";
 import { adapters } from "./adapters/index.js";
 import { AdapterNotFoundError } from "./exceptions.js";
+import {
+    persistApproval,
+    requestApproval,
+    type ApprovalChoice,
+} from "./approval.js";
+import type { CanonicalCapability } from "./capability.js";
 
 export interface ShimOptions {
     tool: "git" | "gh";
@@ -12,6 +22,9 @@ export interface ShimOptions {
     cwd?: string;
     stdout?: NodeJS.WritableStream;
     stderr?: NodeJS.WritableStream;
+    promptForApproval?: (
+        capability: CanonicalCapability,
+    ) => Promise<ApprovalChoice>;
 }
 
 function write(
@@ -34,8 +47,10 @@ export async function runShim(options: ShimOptions): Promise<number> {
     const policyPath = resolvePolicyPath(options.env);
     let decision: "ALLOW" | "DENY" = "DENY";
     let reason = "policy evaluation failed";
+    let loadedPolicy: Awaited<ReturnType<typeof loadPolicy>> | undefined;
     try {
         const loaded = await loadPolicy(options.env, options.cwd);
+        loadedPolicy = loaded;
         const result = await evaluatePolicies(
             loaded.policy,
             loaded.directoryPolicies,
@@ -66,7 +81,35 @@ export async function runShim(options: ShimOptions): Promise<number> {
         return 126;
     }
     write(options.stderr, `[agentiam] ${decision} ${capability.canonical}`);
-    if (decision === "DENY") return 126;
+    if (decision === "DENY") {
+        if (
+            reason === "no matching allow rule" &&
+            loadedPolicy &&
+            isCapabilityKey(capability.canonical)
+        ) {
+            const choice = await (options.promptForApproval ?? requestApproval)(
+                capability,
+            );
+            await persistApproval(
+                loadedPolicy.path,
+                loadedPolicy.policy,
+                capability,
+                choice,
+            );
+            if (choice === "allow" || choice === "allow-context") {
+                write(
+                    options.stderr,
+                    `[agentiam] Saved allow rule to ${loadedPolicy.path}; retry the command to apply it`,
+                );
+            } else if (choice === "deny") {
+                write(
+                    options.stderr,
+                    `[agentiam] Saved deny rule to ${loadedPolicy.path}`,
+                );
+            }
+        }
+        return 126;
+    }
     try {
         const executable = await resolveExecutable(
             options.tool,

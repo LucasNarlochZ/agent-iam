@@ -47,7 +47,7 @@ type DefinitionOf<Key extends CapabilityKey> =
             : never
         : never;
 
-type PolicyRule<Key extends CapabilityKey> =
+export type PolicyRule<Key extends CapabilityKey = CapabilityKey> =
     true | Partial<Record<DefinitionOf<Key>["constraints"][number], string[]>>;
 
 export type PolicyRules = Partial<{
@@ -68,6 +68,10 @@ function definitionFor(
     if (service !== "git" && service !== "github") return undefined;
     const action = actionParts.join(".");
     return registry[service].actions[action as never];
+}
+
+export function isCapabilityKey(value: string): value is CapabilityKey {
+    return definitionFor(value) !== undefined;
 }
 
 export function resolvePolicyPath(
