@@ -125,20 +125,21 @@ An invalid directory policy fails closed and denies the action.
 
 ### Interactive Approvals
 
-When a supported capability has no matching allow rule, Agent IAM prompts for a policy update if standard input and standard error are attached to a TTY:
+When a supported capability has no matching allow rule, Agent IAM prompts for a policy update. Use the up and down arrow keys to select an option and Enter to confirm. Escape or Ctrl+C selects **Skip**.
 
 ```text
 [agentiam] github.pr.merge was denied.
-  1) Allow this capability
-  2) Allow for repository owner/repo
-  3) Explicitly deny
-  4) Skip
-Choose an action:
+❯ Allow this capability
+  Allow for repository owner/repo
+  Explicitly deny
+  Skip
 ```
 
 The prompt can add an unrestricted allow, add an allow for the current repository, branch, or staged paths, add an explicit deny, or leave the policy unchanged. The selection updates `~/.agentiam/policy.yaml`.
 
-An approval only saves the rule; it does not execute the denied command. Retry the command to use the updated policy. Existing explicit denies do not prompt. Non-interactive sessions, unsupported capabilities, invalid policies, and audit failures continue to deny without prompting. AWS approvals are capability-wide because AWS resource constraints are not yet extracted.
+When an intercepted command runs inside an agent such as Codex, its streams are usually not attached to a TTY. `agentiam run` therefore hosts a local approval broker on a private Unix socket and presents the prompt through the parent process's terminal. The agent process is paused while the user decides. If neither the command nor the parent runner has a TTY, the action is denied without prompting.
+
+An approval only saves the rule; it does not execute the denied command. Retry the command to use the updated policy. Existing explicit denies do not prompt. Unsupported capabilities, invalid policies, and audit failures continue to deny without prompting. AWS approvals are capability-wide because AWS resource constraints are not yet extracted.
 
 ## Commands
 
@@ -212,7 +213,9 @@ npm test
 npm run build
 ```
 
-The source is organized around normalization, policy compilation/evaluation, auditing, interception, and process launching. Tests use temporary homes and fake binaries so they do not modify a developer's real Agent IAM configuration.
+Tool integrations are registered in `src/tools.ts`. Adding a command-only integration requires an adapter class and one registry entry; shim creation, CLI validation, auditing, and policy capability validation derive their tool metadata from that registry. Integrations with policy constraints also define their constraint extraction in the same entry.
+
+The remaining source is organized around policy compilation/evaluation, auditing, interception, and process launching. Tests use temporary homes and fake binaries so they do not modify a developer's real Agent IAM configuration.
 
 ## License
 

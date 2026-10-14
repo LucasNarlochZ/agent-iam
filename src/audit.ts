@@ -2,6 +2,7 @@ import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import type { CanonicalCapability } from "./capability.js";
+import type { ToolName } from "./tools.js";
 
 export type Decision = "ALLOW" | "DENY";
 
@@ -9,7 +10,7 @@ export interface AuditRecord {
     timestamp: string;
     capability: CanonicalCapability;
     decision: Decision;
-    tool: "git" | "gh" | "aws";
+    tool: ToolName;
     arguments: string[];
     command: string;
     policyPath: string;

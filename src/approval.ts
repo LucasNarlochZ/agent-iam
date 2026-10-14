@@ -1,30 +1,84 @@
 import { writeFile } from "node:fs/promises";
-import { createInterface } from "node:readline/promises";
+import { emitKeypressEvents } from "node:readline";
 import { stringify } from "yaml";
 import type { CanonicalCapability } from "./capability.js";
 import type { CapabilityKey, Policy, PolicyRule } from "./policy/schema.js";
+import { toolForCapability } from "./tools.js";
 
 export type ApprovalChoice = "allow" | "allow-context" | "deny" | "skip";
 
+export interface ApprovalOption {
+    label: string;
+    value: ApprovalChoice;
+}
+
+export function selectWithArrowKeys(
+    message: string,
+    choices: readonly ApprovalOption[],
+    input: NodeJS.ReadStream = process.stdin,
+    output: NodeJS.WritableStream = process.stderr,
+): Promise<ApprovalChoice> {
+    return new Promise((resolve) => {
+        let selected = 0;
+        const wasRaw = input.isRaw;
+        const render = (moveUp: boolean) => {
+            if (moveUp) output.write(`\u001B[${choices.length}A`);
+            for (const [index, choice] of choices.entries()) {
+                output.write(
+                    `\r\u001B[2K${index === selected ? "❯" : " "} ${choice.label}\n`,
+                );
+            }
+        };
+        const finish = (choice: ApprovalChoice) => {
+            input.off("keypress", onKeypress);
+            input.setRawMode(wasRaw);
+            input.pause();
+            output.write("\n");
+            resolve(choice);
+        };
+        const onKeypress = (
+            _sequence: string,
+            key: { name?: string; ctrl?: boolean },
+        ) => {
+            if (key.name === "up") {
+                selected = (selected - 1 + choices.length) % choices.length;
+                render(true);
+            } else if (key.name === "down") {
+                selected = (selected + 1) % choices.length;
+                render(true);
+            } else if (key.name === "return") {
+                finish(choices[selected]!.value);
+            } else if (
+                key.name === "escape" ||
+                (key.ctrl && key.name === "c")
+            ) {
+                finish(choices.find(({ value }) => value === "skip")!.value);
+            }
+        };
+
+        output.write(`${message}\n`);
+        render(false);
+        emitKeypressEvents(input);
+        input.setRawMode(true);
+        input.on("keypress", onKeypress);
+        input.resume();
+    });
+}
+
 export interface ApprovalPromptOptions {
     isTTY?: boolean;
-    ask?: (question: string) => Promise<string>;
+    select?: (
+        message: string,
+        choices: readonly ApprovalOption[],
+    ) => Promise<ApprovalChoice>;
 }
 
 function contextLabel(capability: CanonicalCapability): string | undefined {
-    if (capability.service === "github") {
-        return capability.constraints?.repository
-            ? `repository ${capability.constraints.repository}`
-            : undefined;
-    }
-    if (capability.service === "aws") return undefined;
-    if (capability.constraints?.paths?.length) {
-        return `paths ${capability.constraints.paths.join(", ")}`;
-    }
-    if (capability.constraints?.branches?.length) {
-        return `branch ${capability.constraints.branches.join(", ")}`;
-    }
-    return undefined;
+    const labels =
+        toolForCapability(capability)
+            ?.policyConstraints(capability)
+            .map(({ label }) => label) ?? [];
+    return labels.length > 0 ? labels.join("; ") : undefined;
 }
 
 export async function requestApproval(
@@ -36,7 +90,7 @@ export async function requestApproval(
     if (!isTTY) return "skip";
 
     const context = contextLabel(capability);
-    const choices: Array<{ label: string; value: ApprovalChoice }> = [
+    const choices: ApprovalOption[] = [
         { label: "Allow this capability", value: "allow" },
         ...(context
             ? [
@@ -49,47 +103,22 @@ export async function requestApproval(
         { label: "Explicitly deny", value: "deny" },
         { label: "Skip", value: "skip" },
     ];
-    const prompt = `[agentiam] ${capability.canonical} was denied.\n${choices
-        .map((choice, index) => `  ${index + 1}) ${choice.label}`)
-        .join("\n")}\nChoose an action: `;
-
-    let readline: ReturnType<typeof createInterface> | undefined;
-    const ask =
-        options.ask ??
-        (async (question: string) => {
-            readline ??= createInterface({
-                input: process.stdin,
-                output: process.stderr,
-            });
-            return readline.question(question);
-        });
-    try {
-        while (true) {
-            const answer = (await ask(prompt)).trim();
-            const selected = choices[Number(answer) - 1];
-            if (selected) return selected.value;
-        }
-    } finally {
-        readline?.close();
-    }
+    return (options.select ?? selectWithArrowKeys)(
+        `[agentiam] ${capability.canonical} was denied.`,
+        choices,
+    );
 }
 
 function contextualRule(
     capability: CanonicalCapability,
 ): PolicyRule | undefined {
-    if (capability.service === "github") {
-        return capability.constraints?.repository
-            ? { repos: [capability.constraints.repository] }
-            : undefined;
-    }
-    if (capability.service === "aws") return undefined;
-    if (capability.constraints?.paths?.length) {
-        return { paths: capability.constraints.paths };
-    }
-    if (capability.constraints?.branches?.length) {
-        return { branches: capability.constraints.branches };
-    }
-    return undefined;
+    const constraints =
+        toolForCapability(capability)?.policyConstraints(capability) ?? [];
+    return constraints.length > 0
+        ? Object.fromEntries(
+              constraints.map(({ name, values }) => [name, values]),
+          )
+        : undefined;
 }
 
 export async function persistApproval(

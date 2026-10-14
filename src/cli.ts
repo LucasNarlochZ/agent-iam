@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import { loadPolicy, resolvePolicyPath } from "./policy/schema.js";
 import { runShim } from "./shim.js";
 import { runWithShims } from "./runner.js";
+import { isToolName } from "./tools.js";
 
 interface Output {
     stdout: NodeJS.WritableStream;
@@ -109,11 +110,7 @@ export async function main(
     if (command === "__shim") {
         const tool = args[1];
         const separator = args.indexOf("--");
-        if (
-            (tool !== "git" && tool !== "gh" && tool !== "aws") ||
-            separator < 0 ||
-            separator < 2
-        ) {
+        if (!isToolName(tool) || separator < 0 || separator < 2) {
             output.stderr.write("Invalid internal shim invocation\n");
             return 1;
         }

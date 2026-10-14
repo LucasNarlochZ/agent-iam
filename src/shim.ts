@@ -6,17 +6,17 @@ import {
 import { evaluatePolicies } from "./policy/engine.js";
 import { appendAuditRecord, renderCommand } from "./audit.js";
 import { resolveExecutable, spawnInherited } from "./process.js";
-import { adapters } from "./adapters/index.js";
-import { AdapterNotFoundError } from "./exceptions.js";
 import {
     persistApproval,
     requestApproval,
     type ApprovalChoice,
 } from "./approval.js";
 import type { CanonicalCapability } from "./capability.js";
+import { tools, type ToolName } from "./tools.js";
+import { requestBrokerApproval } from "./approval-broker.js";
 
 export interface ShimOptions {
-    tool: "git" | "gh" | "aws";
+    tool: ToolName;
     args: string[];
     env: NodeJS.ProcessEnv;
     cwd?: string;
@@ -35,14 +35,10 @@ function write(
 }
 
 export async function runShim(options: ShimOptions): Promise<number> {
-    const capability = await adapters[options.tool + "cli"]?.normalize(
+    const capability = await tools[options.tool].adapter.normalize(
         options.args,
         options.env,
     );
-
-    if (!capability) {
-        throw new AdapterNotFoundError(options.tool);
-    }
 
     const policyPath = resolvePolicyPath(options.env);
     let decision: "ALLOW" | "DENY" = "DENY";
@@ -87,9 +83,16 @@ export async function runShim(options: ShimOptions): Promise<number> {
             loadedPolicy &&
             isCapabilityKey(capability.canonical)
         ) {
-            const choice = await (options.promptForApproval ?? requestApproval)(
-                capability,
-            );
+            const prompt =
+                options.promptForApproval ??
+                (options.env.AGENTIAM_APPROVAL_SOCKET
+                    ? (requested: CanonicalCapability) =>
+                          requestBrokerApproval(
+                              options.env.AGENTIAM_APPROVAL_SOCKET!,
+                              requested,
+                          ).catch(() => "skip" as const)
+                    : requestApproval);
+            const choice = await prompt(capability);
             await persistApproval(
                 loadedPolicy.path,
                 loadedPolicy.policy,

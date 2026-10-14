@@ -71,4 +71,34 @@ describe("shim runner", () => {
         expect(audit).toContain('"tool":"aws"');
         expect(audit).toContain('"canonical":"aws.sts.get-caller-identity"');
     });
+
+    it("brokers approvals for commands launched inside an agent", async () => {
+        const home = await mkdtemp(join(tmpdir(), "agentiam-run-home-"));
+        const bin = await mkdtemp(join(tmpdir(), "agentiam-run-bin-"));
+        const agent = join(bin, "agent");
+        const output = join(home, "args.txt");
+        await mkdir(join(home, ".agentiam"));
+        const policyPath = join(home, ".agentiam", "policy.yaml");
+        await writeFile(policyPath, "allow: {}\ndeny: {}\n");
+        await writeFile(
+            join(bin, "aws"),
+            '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$AGENTIAM_TEST_OUTPUT"\n',
+        );
+        await chmod(join(bin, "aws"), 0o755);
+        await writeFile(agent, "#!/bin/sh\naws sts get-caller-identity\n");
+        await chmod(agent, 0o755);
+
+        const result = await runWithShims(agent, [], {
+            entrypoint: resolve("dist/index.js"),
+            env: { HOME: home, PATH: bin, AGENTIAM_TEST_OUTPUT: output },
+            cwd: home,
+            approvalPrompt: async () => "allow",
+        });
+
+        expect(result).toEqual({ code: 126, signal: null });
+        await expect(readFile(output, "utf8")).rejects.toThrow();
+        expect(await readFile(policyPath, "utf8")).toContain(
+            "aws.sts.get-caller-identity: true",
+        );
+    });
 });

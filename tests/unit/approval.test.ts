@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { persistApproval, requestApproval } from "../../src/approval.js";
+import { PassThrough } from "node:stream";
+import {
+    persistApproval,
+    requestApproval,
+    selectWithArrowKeys,
+} from "../../src/approval.js";
 import { parsePolicy } from "../../src/policy/schema.js";
 
 describe("interactive approval", () => {
@@ -10,10 +15,11 @@ describe("interactive approval", () => {
         const approval = await import("../../src/approval.js");
 
         expect(approval.requestApproval).toBeTypeOf("function");
+        expect(approval.selectWithArrowKeys).toBeTypeOf("function");
     });
 
     it("skips approval when no TTY is available", async () => {
-        let asked = false;
+        let selected = false;
 
         await expect(
             requestApproval(
@@ -25,14 +31,14 @@ describe("interactive approval", () => {
                 },
                 {
                     isTTY: false,
-                    ask: async () => {
-                        asked = true;
-                        return "1";
+                    select: async () => {
+                        selected = true;
+                        return "allow";
                     },
                 },
             ),
         ).resolves.toBe("skip");
-        expect(asked).toBe(false);
+        expect(selected).toBe(false);
     });
 
     it("offers a context-specific allow when context is available", async () => {
@@ -48,9 +54,11 @@ describe("interactive approval", () => {
                 },
                 {
                     isTTY: true,
-                    ask: async (question) => {
-                        message = question;
-                        return "2";
+                    select: async (prompt, choices) => {
+                        message = `${prompt}\n${choices
+                            .map(({ label }) => label)
+                            .join("\n")}`;
+                        return choices[1]!.value;
                     },
                 },
             ),
@@ -61,9 +69,8 @@ describe("interactive approval", () => {
         expect(message).toContain("Skip");
     });
 
-    it("retries invalid answers and omits context when unavailable", async () => {
-        const answers = ["invalid", "2"];
-        const messages: string[] = [];
+    it("omits context when unavailable", async () => {
+        let labels: string[] = [];
 
         await expect(
             requestApproval(
@@ -74,15 +81,52 @@ describe("interactive approval", () => {
                 },
                 {
                     isTTY: true,
-                    ask: async (question) => {
-                        messages.push(question);
-                        return answers.shift() ?? "";
+                    select: async (_prompt, choices) => {
+                        labels = choices.map(({ label }) => label);
+                        return choices[1]!.value;
                     },
                 },
             ),
         ).resolves.toBe("deny");
-        expect(messages).toHaveLength(2);
-        expect(messages[0]).not.toContain("current context");
+        expect(labels).toEqual([
+            "Allow this capability",
+            "Explicitly deny",
+            "Skip",
+        ]);
+    });
+
+    it("selects an approval choice with arrow keys", async () => {
+        const input = new PassThrough() as unknown as NodeJS.ReadStream;
+        const output = new PassThrough();
+        Object.defineProperty(input, "isRaw", {
+            value: false,
+            writable: true,
+        });
+        input.setRawMode = (mode) => {
+            input.isRaw = mode;
+            return input;
+        };
+        let rendered = "";
+        output.on("data", (chunk) => {
+            rendered += chunk.toString();
+        });
+
+        const selection = selectWithArrowKeys(
+            "Choose",
+            [
+                { label: "Allow", value: "allow" },
+                { label: "Deny", value: "deny" },
+                { label: "Skip", value: "skip" },
+            ],
+            input,
+            output,
+        );
+        input.write("\u001B[B\r");
+
+        await expect(selection).resolves.toBe("deny");
+        expect(input.isRaw).toBe(false);
+        expect(rendered).toContain("❯ Allow");
+        expect(rendered).toContain("❯ Deny");
     });
 
     it("adds a context to an existing constrained allow rule", async () => {

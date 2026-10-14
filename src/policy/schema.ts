@@ -2,61 +2,11 @@ import { homedir } from "node:os";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { parse } from "yaml";
+import { capabilityDefinitionFor } from "../tools.js";
 
-const registry = {
-    git: {
-        actions: {
-            commit: { constraints: ["paths"] },
-            push: { constraints: ["branches"] },
-            remote: { constraints: [] },
-            config: { constraints: [] },
-            "symbolic-ref": { constraints: [] },
-            status: { constraints: [] },
-            log: { constraints: [] },
-            diff: { constraints: [] },
-            "rev-parse": { constraints: [] },
-        },
-    },
-    github: {
-        actions: {
-            "pr.create": { constraints: ["repos"] },
-            "pr.merge": { constraints: ["repos"] },
-            "pr.view": { constraints: ["repos"] },
-            "pr.status": { constraints: ["repos"] },
-            "pr.checks": { constraints: ["repos"] },
-            "pr.diff": { constraints: ["repos"] },
-            "pr.list": { constraints: ["repos"] },
-            "repo.view": { constraints: ["repos"] },
-        },
-    },
-} as const;
-
-type ServiceOf = keyof typeof registry;
-type ActionOf<S extends ServiceOf> = keyof (typeof registry)[S]["actions"];
-
-type RegisteredCapabilityKey = {
-    [S in ServiceOf]: `${S}.${ActionOf<S> & string}`;
-}[ServiceOf];
-
-export type CapabilityKey = RegisteredCapabilityKey | `aws.${string}.${string}`;
-
-type DefinitionOf<Key extends CapabilityKey> =
-    Key extends `aws.${string}.${string}`
-        ? { constraints: readonly [] }
-        : Key extends `${infer Service}.${infer Action}`
-          ? Service extends ServiceOf
-              ? Action extends ActionOf<Service>
-                  ? (typeof registry)[Service]["actions"][Action]
-                  : never
-              : never
-          : never;
-
-export type PolicyRule<Key extends CapabilityKey = CapabilityKey> =
-    true | Partial<Record<DefinitionOf<Key>["constraints"][number], string[]>>;
-
-export type PolicyRules = Partial<{
-    [Key in CapabilityKey]: PolicyRule<Key>;
-}>;
+export type CapabilityKey = string;
+export type PolicyRule = true | Record<string, string[]>;
+export type PolicyRules = Partial<Record<CapabilityKey, PolicyRule>>;
 
 export interface Policy {
     allow: PolicyRules;
@@ -65,25 +15,8 @@ export interface Policy {
 
 export class PolicyError extends Error {}
 
-function definitionFor(
-    capability: string,
-): { constraints: readonly string[] } | undefined {
-    const [service, ...actionParts] = capability.split(".");
-    if (service === "aws") {
-        return actionParts.length === 2 &&
-            actionParts.every(
-                (part) => part !== "unknown" && /^[a-z0-9_-]+$/.test(part),
-            )
-            ? { constraints: [] }
-            : undefined;
-    }
-    if (service !== "git" && service !== "github") return undefined;
-    const action = actionParts.join(".");
-    return registry[service].actions[action as never];
-}
-
 export function isCapabilityKey(value: string): value is CapabilityKey {
-    return definitionFor(value) !== undefined;
+    return capabilityDefinitionFor(value) !== undefined;
 }
 
 export function resolvePolicyPath(
@@ -113,9 +46,9 @@ export function parsePolicy(source: string): Policy {
         if (entry === undefined) return {};
         if (!entry || typeof entry !== "object" || Array.isArray(entry))
             throw new PolicyError(`Policy '${key}' must be an object`);
-        const result: Record<string, PolicyRule<CapabilityKey>> = {};
+        const result: Record<string, PolicyRule> = {};
         for (const [capability, rule] of Object.entries(entry)) {
-            const definition = definitionFor(capability);
+            const definition = capabilityDefinitionFor(capability);
             if (!definition)
                 throw new PolicyError(`Unknown capability '${capability}'`);
             if (rule === true) {
@@ -139,7 +72,7 @@ export function parsePolicy(source: string): Policy {
                         `Constraint '${name}' for '${capability}' must be an array of strings`,
                     );
             }
-            result[capability] = rule as PolicyRule<CapabilityKey>;
+            result[capability] = rule as PolicyRule;
         }
         return result as PolicyRules;
     };

@@ -26,7 +26,7 @@ const flagOptions = new Set([
     "--no-cli-auto-prompt",
 ]);
 
-export class AwsCliAdapter implements Adapter<"aws"> {
+export class AwsCliAdapter implements Adapter {
     async normalize(args: string[]): Promise<CanonicalCapability<"aws">> {
         let index = 0;
         while (index < args.length) {

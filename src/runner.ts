@@ -3,6 +3,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { delimiter } from "node:path";
+import { toolNames } from "./tools.js";
+import { startApprovalBroker } from "./approval-broker.js";
+import { requestApproval, type ApprovalChoice } from "./approval.js";
+import type { CanonicalCapability } from "./capability.js";
 
 export interface RunResult {
     code: number | null;
@@ -14,6 +18,9 @@ export interface RunnerOptions {
     entrypoint?: string;
     nodePath?: string;
     cwd?: string;
+    approvalPrompt?: (
+        capability: CanonicalCapability,
+    ) => Promise<ApprovalChoice>;
 }
 
 function wrapper(nodePath: string, entrypoint: string, tool: string): string {
@@ -34,16 +41,35 @@ export async function runWithShims(
     );
     const nodePath = options.nodePath ?? process.execPath;
     const directory = await mkdtemp(join(tmpdir(), "agentiam-"));
+    const approvalSocket = join(directory, "approval.sock");
+    let child: ReturnType<typeof spawn> | undefined;
+    const brokerEnabled =
+        options.approvalPrompt !== undefined ||
+        Boolean(process.stdin.isTTY && process.stderr.isTTY);
+    const broker = brokerEnabled
+        ? await startApprovalBroker(approvalSocket, async (capability) => {
+              const running = child?.exitCode === null;
+              if (running) child?.kill("SIGSTOP");
+              try {
+                  return await (options.approvalPrompt ?? requestApproval)(
+                      capability,
+                  );
+              } finally {
+                  if (running) child?.kill("SIGCONT");
+              }
+          })
+        : undefined;
     const childEnv: NodeJS.ProcessEnv = {
         ...baseEnv,
         AGENTIAM_NODE: nodePath,
         AGENTIAM_ENTRYPOINT: entrypoint,
         AGENTIAM_ORIGINAL_PATH: originalPath,
+        ...(broker ? { AGENTIAM_APPROVAL_SOCKET: approvalSocket } : {}),
         PATH: `${directory}${delimiter}${originalPath}`,
     };
     try {
         await Promise.all(
-            ["git", "gh", "aws"].map(async (tool) => {
+            toolNames.map(async (tool) => {
                 const path = join(directory, tool);
                 await writeFile(
                     path,
@@ -54,22 +80,24 @@ export async function runWithShims(
             }),
         );
         return await new Promise<RunResult>((resolveResult, reject) => {
-            const child = spawn(command, args, {
+            child = spawn(command, args, {
                 env: childEnv,
                 cwd: options.cwd,
                 stdio: "inherit",
             });
-            const forward = (signal: NodeJS.Signals) => child.kill(signal);
+            const spawned = child;
+            const forward = (signal: NodeJS.Signals) => spawned.kill(signal);
             process.on("SIGINT", forward);
             process.on("SIGTERM", forward);
-            child.once("error", reject);
-            child.once("close", (code, signal) => {
+            spawned.once("error", reject);
+            spawned.once("close", (code, signal) => {
                 process.off("SIGINT", forward);
                 process.off("SIGTERM", forward);
                 resolveResult({ code, signal });
             });
         });
     } finally {
+        await broker?.close();
         await rm(directory, { recursive: true, force: true });
     }
 }
