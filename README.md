@@ -145,7 +145,9 @@ Codex executes shell commands through login shells and controls their environmen
 
 For OpenCode V1 and V2, run `agentiam run -- opencode`. Agent IAM detects the installed CLI version. V2 uses native permission prompts through a temporary plugin and forces a private server (`--standalone`) so shell commands inherit the wrapped environment. V1 uses the inherited shim environment and the regular terminal approval prompt; it does not load the V2 plugin or add V2-only command-line flags. Both versions reject connections using `--server` or `--attach`. Existing OpenCode configuration stays in place; the V2 plugin is added only for the wrapped process. If `OPENCODE_CONFIG_CONTENT` is set, it must contain a JSON object.
 
-On OpenCode V2, OpenCode prompts to save a **permanent allow rule** for the denied capability. Accepting saves that rule in the Agent IAM policy; retry the command to use it. Rejecting leaves the policy unchanged and the command denied. This integration does not offer contextual allow rules or persist explicit deny rules through the native prompt. Approvals are tied to the invoking tool's session, and the OpenCode interface is not paused. Commands outside a tool execution cannot use this native approval bridge and remain denied when no policy rule allows them. On V1, approvals use the regular terminal prompt (and require an available TTY). The V2 integration is tested with OpenCode 2.0.29.
+For Claude Code, run `agentiam run -- claude`. Agent IAM adds a temporary MCP server and uses Claude Code's native MCP elicitation question for denied actions; Claude Code's other CLI arguments are passed through unchanged, and existing MCP configuration is retained. The temporary server and socket are removed when Claude Code exits. If native elicitation is unavailable or no user can answer, the action remains denied.
+
+On OpenCode V2, the TUI approval dialog offers **Allow this capability**, **Allow for this context** (when the capability has contextual constraints), **Explicitly deny**, and **Skip**. Allow choices save an Agent IAM policy rule; deny saves a deny rule; skip leaves policy unchanged. Retry the command after saving an allow rule. If the custom TUI dialog is unavailable, OpenCode's native permission prompt remains the fallback and offers its standard approve/reject choices. Approvals are tied to the invoking tool's session, and the OpenCode interface is not paused. Commands outside a tool execution cannot use this approval bridge and remain denied when no policy rule allows them. On V1, approvals use the regular terminal prompt (and require an available TTY). The V2 integration is tested with OpenCode 2.0.29.
 
 An approval only saves the rule; it does not execute the denied command. Retry the command to use the updated policy. Existing explicit denies do not prompt. Unsupported capabilities, invalid policies, and audit failures continue to deny without prompting. AWS approvals are capability-wide because AWS resource constraints are not yet extracted.
 
@@ -161,6 +163,7 @@ Run an agent inside the temporary shim environment:
 
 ```bash
 agentiam run -- opencode
+agentiam run -- claude
 agentiam run -- sh -c 'git commit -m "fix"'
 ```
 

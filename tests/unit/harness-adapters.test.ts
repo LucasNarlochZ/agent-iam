@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -12,6 +12,38 @@ import {
 describe("harness adapters", () => {
     it("uses the generic adapter for non-Codex commands", () => {
         expect(getHarnessAdapter("unknown-agent")).toBe(genericHarnessAdapter);
+    });
+
+    it("configures Claude Code for native MCP elicitation approvals", async () => {
+        const adapter = getHarnessAdapter("/usr/local/bin/claude");
+        const args = ["--model", "sonnet", "--", "help me"];
+        const env: NodeJS.ProcessEnv = {
+            AGENTIAM_NODE: "/usr/bin/node",
+            AGENTIAM_ENTRYPOINT: "/app/dist/index.js",
+            AGENTIAM_NATIVE_APPROVAL_SOCKET: "/tmp/agentiam/native.sock",
+        };
+        const directory = await mkdtemp(join(tmpdir(), "agentiam-claude-"));
+
+        expect(adapter).not.toBe(genericHarnessAdapter);
+        expect(adapter.nativeApprovals).toBe(true);
+        await adapter.prepare?.(env, directory);
+        const commandArgs = adapter.commandArgs(args, env);
+        const configPath =
+            commandArgs[commandArgs.indexOf("--mcp-config") + 1]!;
+        expect(commandArgs).toEqual(["--mcp-config", configPath, ...args]);
+        expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual({
+            mcpServers: {
+                agentiam: {
+                    type: "stdio",
+                    command: "/usr/bin/node",
+                    args: ["/app/dist/index.js", "__mcp"],
+                    env: {
+                        AGENTIAM_NATIVE_APPROVAL_SOCKET:
+                            "/tmp/agentiam/native.sock",
+                    },
+                },
+            },
+        });
     });
 
     it("launches OpenCode with a private server and its native approval plugin", async () => {
@@ -32,6 +64,9 @@ describe("harness adapters", () => {
             "existing",
             pathToFileURL(join(directory, "opencode-plugin")).href,
         ]);
+        expect(
+            await readFile(join(directory, "opencode-plugin/tui.js"), "utf8"),
+        ).toContain("opencode-tui-plugin.js");
     });
 
     it("uses the inherited shim environment and terminal approvals for OpenCode V1", async () => {

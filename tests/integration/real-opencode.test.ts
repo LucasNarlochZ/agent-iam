@@ -6,6 +6,7 @@ import {
     mkdtemp,
     readFile,
     rm,
+    symlink,
     writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -33,6 +34,8 @@ describe.skipIf(!opencode || process.platform === "win32")(
                     const bin = join(directory, "bin");
                     await mkdir(bin);
                     await mkdir(join(directory, ".agentiam"));
+                    const agentiam = join(bin, "agentiam");
+                    await symlink(resolve("dist/index.js"), agentiam);
                     await writeFile(
                         join(directory, ".agentiam/policy.yaml"),
                         "allow: {}\ndeny: {}\n",
@@ -55,7 +58,7 @@ describe.skipIf(!opencode || process.platform === "win32")(
                     await chmod(join(bin, "git"), 0o755);
                     const result = await exec(
                         process.execPath,
-                        [resolve("dist/index.js"), "run", "--", driver],
+                        [agentiam, "run", "--", driver],
                         {
                             cwd: directory,
                             env: {

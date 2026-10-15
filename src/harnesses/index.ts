@@ -1,4 +1,5 @@
 import { basename } from "node:path";
+import { claudeHarnessAdapter } from "./claude.js";
 import { codexHarnessAdapter } from "./codex.js";
 import { opencodeHarnessAdapter } from "./opencode.js";
 
@@ -23,7 +24,7 @@ export const genericHarnessAdapter: HarnessAdapter = {
     commandArgs: (args) => args,
 };
 
-export { codexHarnessAdapter, opencodeHarnessAdapter };
+export { claudeHarnessAdapter, codexHarnessAdapter, opencodeHarnessAdapter };
 
 export const harnesses: Record<string, HarnessDefinition> = {
     opencode: {
@@ -33,6 +34,10 @@ export const harnesses: Record<string, HarnessDefinition> = {
     codex: {
         matches: (command) => basename(command) === "codex",
         adapter: codexHarnessAdapter,
+    },
+    claude: {
+        matches: (command) => basename(command) === "claude",
+        adapter: claudeHarnessAdapter,
     },
 };
 
