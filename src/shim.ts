@@ -109,6 +109,14 @@ export async function runShim(options: ShimOptions): Promise<number> {
                     options.stderr,
                     `[agentiam] Saved deny rule to ${loadedPolicy.path}`,
                 );
+            } else if (
+                choice === "skip" &&
+                options.env.AGENTIAM_NATIVE_APPROVAL_SOCKET
+            ) {
+                write(
+                    options.stderr,
+                    '[agentiam] Approval was skipped or unavailable. If Codex is running with --yolo or approval_policy = "never", it cannot show this prompt. Restart without --yolo using --ask-for-approval on-request. The command remains denied.',
+                );
             }
         }
         return 126;

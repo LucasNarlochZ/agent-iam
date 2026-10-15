@@ -143,6 +143,44 @@ describe("command shim", () => {
         await expect(readFile(output, "utf8")).rejects.toThrow();
     });
 
+    it("explains when a Codex policy approval is skipped or unavailable", async () => {
+        const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
+        const bin = await mkdtemp(join(tmpdir(), "agentiam-shim-bin-"));
+        const cwd = await mkdtemp(join(tmpdir(), "agentiam-shim-cwd-"));
+        await fakeTool(bin, "aws");
+        await mkdir(join(home, ".agentiam"));
+        await writeFile(
+            join(home, ".agentiam", "policy.yaml"),
+            "allow: {}\ndeny: {}\n",
+        );
+        let message = "";
+        const stderr = new Writable({
+            write(chunk, _encoding, callback) {
+                message += chunk.toString();
+                callback();
+            },
+        });
+
+        const code = await runShim({
+            tool: "aws",
+            args: ["s3", "ls"],
+            env: {
+                HOME: home,
+                PATH: bin,
+                AGENTIAM_ORIGINAL_PATH: bin,
+                AGENTIAM_NATIVE_APPROVAL_SOCKET: join(home, "approval.sock"),
+            },
+            cwd,
+            stderr,
+            promptForApproval: async () => "skip",
+        });
+
+        expect(code).toBe(126);
+        expect(message).toContain("Approval was skipped or unavailable");
+        expect(message).toContain("--ask-for-approval on-request");
+        expect(message).toContain("command remains denied");
+    });
+
     it("does not prompt for capabilities that cannot be stored in policy", async () => {
         const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
         const bin = await mkdtemp(join(tmpdir(), "agentiam-shim-bin-"));
