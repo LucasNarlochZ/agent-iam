@@ -217,6 +217,19 @@ Tool integrations are registered in `src/tools.ts`. Adding a command-only integr
 
 The remaining source is organized around policy compilation/evaluation, auditing, interception, and process launching. Tests use temporary homes and fake binaries so they do not modify a developer's real Agent IAM configuration.
 
+### Real Codex Tests
+
+With `codex` on `PATH`, run the headless Codex integration tests:
+
+```bash
+npm run build
+npm test -- tests/integration/real-codex.test.ts
+```
+
+These tests use the real Codex CLI with a local scripted Responses API server, isolated `HOME` and `CODEX_HOME` directories, and a fake Git executable. They check allowed and denied shell commands, argument forwarding, tool results, and audit records without model inference or API credentials. They do not test interactive TUI approvals. The tests are skipped when Codex is unavailable or on Windows. CI running this coverage should install and pin a Codex CLI version.
+
+The test subprocess uses `danger-full-access` so it does not depend on host sandbox support. Only scripted tool calls are returned by the local server; these tests validate Agent IAM interception, not Codex sandboxing.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
