@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Plugin } from "@opencode/plugin";
-import plugin from "../../src/opencode-plugin.js";
+import plugin from "../../src/harnesses/opencode-plugin.js";
 import { requestBrokerApproval } from "../../src/approval-broker.js";
 
 afterEach(() => vi.unstubAllEnvs());

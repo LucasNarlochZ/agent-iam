@@ -7,7 +7,7 @@ import {
     getHarnessAdapter,
     genericHarnessAdapter,
     type HarnessAdapter,
-} from "../../src/harness-adapters.js";
+} from "../../src/harnesses/index.js";
 
 describe("harness adapters", () => {
     it("uses the generic adapter for non-Codex commands", () => {

@@ -1,7 +1,7 @@
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { mkdir, writeFile } from "node:fs/promises";
-import type { HarnessAdapter } from "../harness-adapters.js";
+import type { HarnessAdapter } from "./index.js";
 
 export const opencodeHarnessAdapter: HarnessAdapter = {
     nativeApprovals: true,

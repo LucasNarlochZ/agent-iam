@@ -1,28 +1,6 @@
-import { basename } from "node:path";
-import { opencodeHarnessAdapter } from "./harnesses/opencode.js";
+import type { HarnessAdapter } from "./index.js";
 
-export interface HarnessAdapter {
-    nativeApprovals: boolean;
-    commandArgs(args: string[], env: NodeJS.ProcessEnv): string[];
-    prepare?(
-        env: NodeJS.ProcessEnv,
-        directory: string,
-        command?: string,
-        version?: string,
-    ): void | Promise<void>;
-}
-
-export interface HarnessDefinition {
-    matches(command: string): boolean;
-    adapter: HarnessAdapter;
-}
-
-export const genericHarnessAdapter: HarnessAdapter = {
-    nativeApprovals: false,
-    commandArgs: (args) => args,
-};
-
-const codexEnvironmentKeys = [
+const environmentKeys = [
     "PATH",
     "ZDOTDIR",
     "BASH_ENV",
@@ -34,7 +12,7 @@ const codexEnvironmentKeys = [
 export const codexHarnessAdapter: HarnessAdapter = {
     nativeApprovals: true,
     commandArgs(args, env) {
-        const environmentOverrides = codexEnvironmentKeys.flatMap((key) => {
+        const environmentOverrides = environmentKeys.flatMap((key) => {
             const value = env[key];
             return value === undefined
                 ? []
@@ -62,24 +40,3 @@ export const codexHarnessAdapter: HarnessAdapter = {
         return [...environmentOverrides, ...mcpOverrides, ...args];
     },
 };
-
-export const harnesses: Record<string, HarnessDefinition> = {
-    opencode: {
-        matches: (command) => basename(command) === "opencode",
-        adapter: opencodeHarnessAdapter,
-    },
-    codex: {
-        matches: (command) => basename(command) === "codex",
-        adapter: codexHarnessAdapter,
-    },
-};
-
-export function getHarnessAdapter(
-    command: string,
-    registry: Record<string, HarnessDefinition> = harnesses,
-): HarnessAdapter {
-    return (
-        Object.values(registry).find(({ matches }) => matches(command))
-            ?.adapter ?? genericHarnessAdapter
-    );
-}

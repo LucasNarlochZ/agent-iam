@@ -1,7 +1,10 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-    entry: ["src/index.ts", "src/opencode-plugin.ts"],
+    entry: {
+        index: "src/index.ts",
+        "opencode-plugin": "src/harnesses/opencode-plugin.ts",
+    },
     format: ["esm"],
     platform: "node",
     target: "node20",

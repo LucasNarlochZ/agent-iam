@@ -11,7 +11,7 @@ import {
 import { requestApproval, type ApprovalChoice } from "./approval.js";
 import type { CanonicalCapability } from "./capability.js";
 import { createShellEnvironment } from "./shell-environment.js";
-import { getHarnessAdapter } from "./harness-adapters.js";
+import { getHarnessAdapter } from "./harnesses/index.js";
 
 export interface RunResult {
     code: number | null;

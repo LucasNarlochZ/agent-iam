@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { unlink } from "node:fs/promises";
 import { Plugin } from "@opencode/plugin";
-import { startApprovalBroker } from "./approval-broker.js";
+import { startApprovalBroker } from "../approval-broker.js";
 
 const environmentKeys = [
     "PATH",
