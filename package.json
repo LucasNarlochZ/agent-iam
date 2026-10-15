@@ -42,6 +42,7 @@
         "url": "git+https://github.com/LucasNarZ/agent-iam.git"
     },
     "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.32.1",
         "tau-prolog": "^0.3.4",
         "yaml": "^2.9.0"
     },

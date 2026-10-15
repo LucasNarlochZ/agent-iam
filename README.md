@@ -137,7 +137,11 @@ When a supported capability has no matching allow rule, Agent IAM prompts for a 
 
 The prompt can add an unrestricted allow, add an allow for the current repository, branch, or staged paths, add an explicit deny, or leave the policy unchanged. The selection updates `~/.agentiam/policy.yaml`.
 
-When an intercepted command runs inside an agent such as Codex, its streams are usually not attached to a TTY. `agentiam run` therefore hosts a local approval broker on a private Unix socket and presents the prompt through the parent process's terminal. The agent process is paused while the user decides. If neither the command nor the parent runner has a TTY, the action is denied without prompting.
+When an intercepted command runs inside an agent, its streams are usually not attached to a TTY. `agentiam run` therefore hosts a local approval broker on a private Unix socket. Generic harnesses present the prompt through the parent process's terminal and pause the agent while the user decides. If neither the command nor the parent runner has a TTY, the action is denied without prompting.
+
+For Codex, Agent IAM registers a temporary local MCP server and sends approval requests through MCP elicitation. Codex displays the choices in its native interface, so Agent IAM does not take over Codex's terminal or pause its TUI. Codex must use an interactive approval policy that permits MCP elicitations; otherwise, the request is skipped and the command remains denied.
+
+Codex executes shell commands through login shells and controls their environment with `shell_environment_policy`. Agent IAM injects its temporary paths into that policy and uses scoped Zsh, Bash, and POSIX shell startup files to restore the shim directory after user startup files run. The temporary MCP configuration and sockets exist only for the wrapped Codex process.
 
 An approval only saves the rule; it does not execute the denied command. Retry the command to use the updated policy. Existing explicit denies do not prompt. Unsupported capabilities, invalid policies, and audit failures continue to deny without prompting. AWS approvals are capability-wide because AWS resource constraints are not yet extracted.
 

@@ -5,6 +5,7 @@ import { loadPolicy, resolvePolicyPath } from "./policy/schema.js";
 import { runShim } from "./shim.js";
 import { runWithShims } from "./runner.js";
 import { isToolName } from "./tools.js";
+import { serveMcpApprovals } from "./mcp-approval.js";
 
 interface Output {
     stdout: NodeJS.WritableStream;
@@ -17,6 +18,7 @@ export interface CliDependencies {
     run?: typeof runWithShims;
     shim?: typeof runShim;
     resignal?: (signal: NodeJS.Signals) => void;
+    mcp?: (path: string) => Promise<void>;
 }
 
 function usage(): string {
@@ -120,6 +122,15 @@ export async function main(
             env,
             stderr: output.stderr,
         });
+    }
+    if (command === "__mcp") {
+        const socketPath = env.AGENTIAM_NATIVE_APPROVAL_SOCKET;
+        if (!socketPath) {
+            output.stderr.write("Missing native approval socket\n");
+            return 1;
+        }
+        await (dependencies.mcp ?? serveMcpApprovals)(socketPath);
+        return 0;
     }
     output.stderr.write(`${usage()}\n`);
     return 1;

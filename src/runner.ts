@@ -1,12 +1,16 @@
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { delimiter } from "node:path";
 import { toolNames } from "./tools.js";
-import { startApprovalBroker } from "./approval-broker.js";
+import {
+    requestBrokerApproval,
+    startApprovalBroker,
+} from "./approval-broker.js";
 import { requestApproval, type ApprovalChoice } from "./approval.js";
 import type { CanonicalCapability } from "./capability.js";
+import { createShellEnvironment } from "./shell-environment.js";
 
 export interface RunResult {
     code: number | null;
@@ -21,6 +25,49 @@ export interface RunnerOptions {
     approvalPrompt?: (
         capability: CanonicalCapability,
     ) => Promise<ApprovalChoice>;
+}
+
+const codexEnvironmentKeys = [
+    "PATH",
+    "ZDOTDIR",
+    "BASH_ENV",
+    "ENV",
+    "AGENTIAM_ORIGINAL_PATH",
+    "AGENTIAM_APPROVAL_SOCKET",
+] as const;
+
+export function commandArgsWithEnvironment(
+    command: string,
+    args: string[],
+    env: NodeJS.ProcessEnv,
+): string[] {
+    if (basename(command) !== "codex") return args;
+    const overrides = codexEnvironmentKeys.flatMap((key) => {
+        const value = env[key];
+        return value === undefined
+            ? []
+            : [
+                  "--config",
+                  `shell_environment_policy.set.${key}=${JSON.stringify(value)}`,
+              ];
+    });
+    const nodePath = env.AGENTIAM_NODE;
+    const entrypoint = env.AGENTIAM_ENTRYPOINT;
+    const nativeSocket = env.AGENTIAM_NATIVE_APPROVAL_SOCKET;
+    const mcpOverrides =
+        nodePath && entrypoint && nativeSocket
+            ? [
+                  "--config",
+                  `mcp_servers.agentiam.command=${JSON.stringify(nodePath)}`,
+                  "--config",
+                  `mcp_servers.agentiam.args=${JSON.stringify([entrypoint, "__mcp"])}`,
+                  "--config",
+                  `mcp_servers.agentiam.env.AGENTIAM_NATIVE_APPROVAL_SOCKET=${JSON.stringify(nativeSocket)}`,
+                  "--config",
+                  "mcp_servers.agentiam.required=true",
+              ]
+            : [];
+    return [...overrides, ...mcpOverrides, ...args];
 }
 
 function wrapper(nodePath: string, entrypoint: string, tool: string): string {
@@ -42,12 +89,22 @@ export async function runWithShims(
     const nodePath = options.nodePath ?? process.execPath;
     const directory = await mkdtemp(join(tmpdir(), "agentiam-"));
     const approvalSocket = join(directory, "approval.sock");
+    const nativeApprovalSocket = join(directory, "native-approval.sock");
     let child: ReturnType<typeof spawn> | undefined;
+    const nativeCodexApproval =
+        basename(command) === "codex" && options.approvalPrompt === undefined;
     const brokerEnabled =
+        nativeCodexApproval ||
         options.approvalPrompt !== undefined ||
         Boolean(process.stdin.isTTY && process.stderr.isTTY);
     const broker = brokerEnabled
         ? await startApprovalBroker(approvalSocket, async (capability) => {
+              if (nativeCodexApproval) {
+                  return requestBrokerApproval(
+                      nativeApprovalSocket,
+                      capability,
+                  );
+              }
               const running = child?.exitCode === null;
               if (running) child?.kill("SIGSTOP");
               try {
@@ -59,14 +116,24 @@ export async function runWithShims(
               }
           })
         : undefined;
+    const shellEnv = await createShellEnvironment(
+        directory,
+        directory,
+        baseEnv,
+    );
     const childEnv: NodeJS.ProcessEnv = {
         ...baseEnv,
+        ...shellEnv,
         AGENTIAM_NODE: nodePath,
         AGENTIAM_ENTRYPOINT: entrypoint,
         AGENTIAM_ORIGINAL_PATH: originalPath,
         ...(broker ? { AGENTIAM_APPROVAL_SOCKET: approvalSocket } : {}),
+        ...(nativeCodexApproval
+            ? { AGENTIAM_NATIVE_APPROVAL_SOCKET: nativeApprovalSocket }
+            : {}),
         PATH: `${directory}${delimiter}${originalPath}`,
     };
+    const commandArgs = commandArgsWithEnvironment(command, args, childEnv);
     try {
         await Promise.all(
             toolNames.map(async (tool) => {
@@ -80,7 +147,7 @@ export async function runWithShims(
             }),
         );
         return await new Promise<RunResult>((resolveResult, reject) => {
-            child = spawn(command, args, {
+            child = spawn(command, commandArgs, {
                 env: childEnv,
                 cwd: options.cwd,
                 stdio: "inherit",

@@ -12,6 +12,10 @@ export interface ApprovalOption {
     value: ApprovalChoice;
 }
 
+export function approvalMessage(capability: CanonicalCapability): string {
+    return `[agentiam] ${capability.canonical} was denied.`;
+}
+
 export function selectWithArrowKeys(
     message: string,
     choices: readonly ApprovalOption[],
@@ -81,16 +85,11 @@ function contextLabel(capability: CanonicalCapability): string | undefined {
     return labels.length > 0 ? labels.join("; ") : undefined;
 }
 
-export async function requestApproval(
+export function approvalOptions(
     capability: CanonicalCapability,
-    options: ApprovalPromptOptions = {},
-): Promise<ApprovalChoice> {
-    const isTTY =
-        options.isTTY ?? Boolean(process.stdin.isTTY && process.stderr.isTTY);
-    if (!isTTY) return "skip";
-
+): ApprovalOption[] {
     const context = contextLabel(capability);
-    const choices: ApprovalOption[] = [
+    return [
         { label: "Allow this capability", value: "allow" },
         ...(context
             ? [
@@ -103,8 +102,19 @@ export async function requestApproval(
         { label: "Explicitly deny", value: "deny" },
         { label: "Skip", value: "skip" },
     ];
+}
+
+export async function requestApproval(
+    capability: CanonicalCapability,
+    options: ApprovalPromptOptions = {},
+): Promise<ApprovalChoice> {
+    const isTTY =
+        options.isTTY ?? Boolean(process.stdin.isTTY && process.stderr.isTTY);
+    if (!isTTY) return "skip";
+
+    const choices = approvalOptions(capability);
     return (options.select ?? selectWithArrowKeys)(
-        `[agentiam] ${capability.canonical} was denied.`,
+        approvalMessage(capability),
         choices,
     );
 }
