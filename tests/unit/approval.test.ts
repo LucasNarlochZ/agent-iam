@@ -83,7 +83,8 @@ describe("interactive approval", () => {
                     isTTY: true,
                     select: async (_prompt, choices) => {
                         labels = choices.map(({ label }) => label);
-                        return choices.find(({ value }) => value === "deny")!.value;
+                        return choices.find(({ value }) => value === "deny")!
+                            .value;
                     },
                 },
             ),

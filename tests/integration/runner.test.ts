@@ -150,8 +150,12 @@ describe("shim runner", () => {
         });
 
         expect(result).toEqual({ code: 0, signal: null });
-        expect(await readFile(output, "utf8")).toBe("sts\nget-caller-identity\n");
-        expect(await readFile(policyPath, "utf8")).toBe("allow: {}\ndeny: {}\n");
+        expect(await readFile(output, "utf8")).toBe(
+            "sts\nget-caller-identity\n",
+        );
+        expect(await readFile(policyPath, "utf8")).toBe(
+            "allow: {}\ndeny: {}\n",
+        );
     });
 
     it("preserves interception when a login shell replaces PATH", async () => {

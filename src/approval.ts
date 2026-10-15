@@ -6,11 +6,7 @@ import type { CapabilityKey, Policy, PolicyRule } from "./policy/schema.js";
 import { toolForCapability } from "./tools.js";
 
 export type ApprovalChoice =
-    | "allow"
-    | "allow-context"
-    | "allow-once"
-    | "deny"
-    | "skip";
+    "allow" | "allow-context" | "allow-once" | "deny" | "skip";
 
 export interface ApprovalOption {
     label: string;
