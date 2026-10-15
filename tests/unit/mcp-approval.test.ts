@@ -40,6 +40,7 @@ describe("MCP approval", () => {
                                 const: "allow-context",
                                 title: "Allow for repository owner/repo",
                             },
+                            { const: "allow-once", title: "Allow once" },
                             { const: "deny", title: "Explicitly deny" },
                             { const: "skip", title: "Skip" },
                         ],

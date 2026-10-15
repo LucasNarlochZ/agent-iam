@@ -3,7 +3,11 @@ import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { unlink } from "node:fs/promises";
 import { Plugin } from "@opencode/plugin";
-import { startApprovalBroker } from "../approval-broker.js";
+import {
+    startApprovalBroker,
+    startApprovalChoiceChannel,
+} from "../approval-broker.js";
+import { approvalOptions } from "../approval.js";
 
 const environmentKeys = [
     "PATH",
@@ -49,6 +53,14 @@ export default Plugin.define({
                             async (capability) => {
                                 const signal = context.signal;
                                 if (signal?.aborted) return "skip";
+                                const choicePath = join(
+                                    dirname(nativeSocket),
+                                    `${randomUUID().slice(0, 8)}.choice.sock`,
+                                );
+                                const choiceChannel =
+                                    await startApprovalChoiceChannel(
+                                        choicePath,
+                                    );
                                 let onAbort = () => {};
                                 const aborted = new Promise<"skip">(
                                     (resolve) => {
@@ -61,29 +73,65 @@ export default Plugin.define({
                                     },
                                 );
                                 try {
-                                    const approval = ctx.permission.assert({
-                                        sessionID: context.sessionID,
-                                        agent: context.agent,
-                                        source: {
-                                            type: "tool",
-                                            messageID: context.messageID,
-                                            id: context.id,
-                                        },
-                                        action: "agentiam.allow",
-                                        resources: [capability.canonical],
-                                        save: [],
-                                        metadata: {
-                                            capability,
-                                            persistent: true,
-                                        },
-                                    });
-                                    return await Promise.race([
-                                        approval.then(() => "allow" as const),
-                                        aborted,
+                                    const approval = ctx.permission
+                                        .assert({
+                                            sessionID: context.sessionID,
+                                            agent: context.agent,
+                                            source: {
+                                                type: "tool",
+                                                messageID: context.messageID,
+                                                id: context.id,
+                                            },
+                                            action: "agentiam.allow",
+                                            resources: [capability.canonical],
+                                            save: [],
+                                            metadata: {
+                                                capability,
+                                                persistent: true,
+                                                agentiamApproval: {
+                                                    socket: choicePath,
+                                                    choices:
+                                                        approvalOptions(
+                                                            capability,
+                                                        ),
+                                                },
+                                            },
+                                        })
+                                        .then(
+                                            () => true,
+                                            () => false,
+                                        );
+                                    const result = await Promise.race([
+                                        choiceChannel.choice.then((choice) => ({
+                                            choice,
+                                        })),
+                                        approval.then((allowed) => ({
+                                            allowed,
+                                        })),
+                                        aborted.then(() => ({ aborted: true })),
                                     ]);
-                                } catch {
-                                    return "skip";
+                                    if ("choice" in result) {
+                                        const allowed = await Promise.race([
+                                            approval,
+                                            aborted.then(() => false),
+                                        ]);
+                                        return allowed ||
+                                            result.choice === "deny" ||
+                                            result.choice === "skip"
+                                            ? result.choice
+                                            : "skip";
+                                    }
+                                    return "allowed" in result && result.allowed
+                                        ? "allow"
+                                        : "skip";
                                 } finally {
+                                    await choiceChannel.close();
+                                    await unlink(choicePath).catch(
+                                        (error: NodeJS.ErrnoException) => {
+                                            if (error.code !== "ENOENT")
+                                                throw error;
+                                        },
+                                    );
                                     signal?.removeEventListener(
                                         "abort",
                                         onAbort,

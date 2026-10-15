@@ -99,7 +99,13 @@ export async function runShim(options: ShimOptions): Promise<number> {
                 capability,
                 choice,
             );
-            if (choice === "allow" || choice === "allow-context") {
+            if (choice === "allow-once") {
+                decision = "ALLOW";
+                write(
+                    options.stderr,
+                    `[agentiam] Allowing ${capability.canonical} once; policy unchanged`,
+                );
+            } else if (choice === "allow" || choice === "allow-context") {
                 write(
                     options.stderr,
                     `[agentiam] Saved allow rule to ${loadedPolicy.path}; retry the command to apply it`,
@@ -119,7 +125,7 @@ export async function runShim(options: ShimOptions): Promise<number> {
                 );
             }
         }
-        return 126;
+        if (decision === "DENY") return 126;
     }
     try {
         const executable = await resolveExecutable(

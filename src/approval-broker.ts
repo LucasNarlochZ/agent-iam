@@ -5,6 +5,7 @@ import type { ApprovalChoice } from "./approval.js";
 const choices = new Set<ApprovalChoice>([
     "allow",
     "allow-context",
+    "allow-once",
     "deny",
     "skip",
 ]);
@@ -76,6 +77,72 @@ export async function startApprovalBroker(
             });
         },
     };
+}
+
+export async function startApprovalChoiceChannel(path: string): Promise<{
+    choice: Promise<ApprovalChoice>;
+    close(): Promise<void>;
+}> {
+    let resolveChoice!: (choice: ApprovalChoice) => void;
+    const choice = new Promise<ApprovalChoice>((resolve) => {
+        resolveChoice = resolve;
+    });
+    const server = createServer((socket) => {
+        socket.setEncoding("utf8");
+        let input = "";
+        socket.on("data", (chunk: string) => {
+            input += chunk;
+            const newline = input.indexOf("\n");
+            if (newline < 0) return;
+            const value = input.slice(0, newline);
+            if (choices.has(value as ApprovalChoice)) {
+                resolveChoice(value as ApprovalChoice);
+                socket.end("ok\n");
+            } else {
+                socket.end("skip\n");
+            }
+        });
+    });
+    await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(path, () => {
+            server.off("error", reject);
+            resolve();
+        });
+    });
+    return {
+        choice,
+        async close() {
+            await new Promise<void>((resolve, reject) => {
+                server.close((error) => (error ? reject(error) : resolve()));
+            });
+        },
+    };
+}
+
+export function sendApprovalChoice(
+    path: string,
+    choice: ApprovalChoice,
+): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const socket = createConnection({ path });
+        socket.setEncoding("utf8");
+        let response = "";
+        socket.once("connect", () => socket.end(`${choice}\n`));
+        socket.on("data", (chunk: string) => {
+            response += chunk;
+            const newline = response.indexOf("\n");
+            if (newline < 0) return;
+            if (response.slice(0, newline) === "ok") resolve();
+            else reject(new Error("Approval choice delivery failed"));
+        });
+        socket.once("error", reject);
+        socket.once("end", () => {
+            if (!response.includes("\n")) {
+                reject(new Error("Approval choice channel closed"));
+            }
+        });
+    });
 }
 
 export function requestBrokerApproval(

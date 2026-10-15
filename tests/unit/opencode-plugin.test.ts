@@ -4,12 +4,23 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Plugin } from "@opencode/plugin";
 import plugin from "../../src/harnesses/opencode-plugin.js";
-import { requestBrokerApproval } from "../../src/approval-broker.js";
+import type { CanonicalCapability } from "../../src/capability.js";
+import {
+    requestBrokerApproval,
+    sendApprovalChoice,
+} from "../../src/approval-broker.js";
 
 afterEach(() => vi.unstubAllEnvs());
 
 describe("OpenCode approval plugin", () => {
-    async function setup(reject = false) {
+    async function setup(
+        reject = false,
+        capability: CanonicalCapability = {
+            service: "git",
+            action: "push",
+            canonical: "git.push",
+        },
+    ) {
         const directory = await mkdtemp(join(tmpdir(), "agentiam-oc-"));
         vi.stubEnv(
             "AGENTIAM_NATIVE_APPROVAL_SOCKET",
@@ -18,7 +29,7 @@ describe("OpenCode approval plugin", () => {
         vi.stubEnv("PATH", "/agentiam:/usr/bin");
         let shellHook: (event: any) => void;
         let permissionHook: (event: any) => void;
-        const assert = vi.fn(async () => {
+        const assert = vi.fn(async (_input: { metadata?: unknown }) => {
             if (reject) throw new Error("Rejected");
         });
         const tool = {
@@ -28,11 +39,7 @@ describe("OpenCode approval plugin", () => {
                 expect(event.env.PATH).toBe("/agentiam:/usr/bin");
                 return requestBrokerApproval(
                     event.env.AGENTIAM_APPROVAL_SOCKET!,
-                    {
-                        service: "git",
-                        action: "push",
-                        canonical: "git.push",
-                    },
+                    capability,
                 );
             },
         };
@@ -110,5 +117,44 @@ describe("OpenCode approval plugin", () => {
         event.effect = "deny";
         permissionHook()(event);
         expect(event.effect).toBe("deny");
+    });
+
+    it("exposes Agent IAM approval choices to the OpenCode TUI plugin", async () => {
+        const { tool, assert } = await setup();
+        await tool.execute({}, { sessionID: "ses_one" });
+        expect(assert.mock.calls[0]![0].metadata).toMatchObject({
+            agentiamApproval: {
+                choices: [
+                    { label: "Allow this capability", value: "allow" },
+                    { label: "Allow once", value: "allow-once" },
+                    { label: "Explicitly deny", value: "deny" },
+                    { label: "Skip", value: "skip" },
+                ],
+            },
+        });
+    });
+
+    it("returns the TUI's contextual approval choice to the shim", async () => {
+        const { tool, assert } = await setup(false, {
+            service: "git",
+            action: "push",
+            canonical: "git.push",
+            constraints: { branches: ["main"] },
+        });
+        let resolveApproval!: () => void;
+        assert.mockImplementation(
+            () => new Promise<void>((resolve) => (resolveApproval = resolve)),
+        );
+        const execution = tool.execute({}, { sessionID: "ses_one" });
+        await vi.waitFor(() => expect(assert).toHaveBeenCalled());
+        const metadata = assert.mock.calls[0]![0].metadata as {
+            agentiamApproval: { socket: string };
+        };
+        await sendApprovalChoice(
+            metadata.agentiamApproval.socket,
+            "allow-context",
+        );
+        resolveApproval();
+        await expect(execution).resolves.toBe("allow-context");
     });
 });

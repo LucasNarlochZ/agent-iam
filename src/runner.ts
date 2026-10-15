@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { execFile, spawn } from "node:child_process";
@@ -49,10 +49,12 @@ export async function runWithShims(
 ): Promise<RunResult> {
     const baseEnv = { ...process.env, ...options.env };
     const originalPath = baseEnv.PATH ?? "";
-    const entrypoint = resolve(
-        options.entrypoint ??
-            process.argv[1] ??
-            join(process.cwd(), "dist/index.js"),
+    const entrypoint = await realpath(
+        resolve(
+            options.entrypoint ??
+                process.argv[1] ??
+                join(process.cwd(), "dist/index.js"),
+        ),
     );
     const nodePath = options.nodePath ?? process.execPath;
     const directory = await mkdtemp(join(tmpdir(), "agentiam-"));

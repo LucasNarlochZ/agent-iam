@@ -83,16 +83,29 @@ describe("interactive approval", () => {
                     isTTY: true,
                     select: async (_prompt, choices) => {
                         labels = choices.map(({ label }) => label);
-                        return choices[1]!.value;
+                        return choices.find(({ value }) => value === "deny")!.value;
                     },
                 },
             ),
         ).resolves.toBe("deny");
         expect(labels).toEqual([
             "Allow this capability",
+            "Allow once",
             "Explicitly deny",
             "Skip",
         ]);
+    });
+
+    it("offers allow once without a policy rule", async () => {
+        const { approvalOptions } = await import("../../src/approval.js");
+
+        expect(
+            approvalOptions({
+                service: "git",
+                action: "status",
+                canonical: "git.status",
+            }),
+        ).toContainEqual({ label: "Allow once", value: "allow-once" });
     });
 
     it("selects an approval choice with arrow keys", async () => {

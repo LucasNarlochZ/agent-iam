@@ -5,7 +5,12 @@ import type { CanonicalCapability } from "./capability.js";
 import type { CapabilityKey, Policy, PolicyRule } from "./policy/schema.js";
 import { toolForCapability } from "./tools.js";
 
-export type ApprovalChoice = "allow" | "allow-context" | "deny" | "skip";
+export type ApprovalChoice =
+    | "allow"
+    | "allow-context"
+    | "allow-once"
+    | "deny"
+    | "skip";
 
 export interface ApprovalOption {
     label: string;
@@ -99,6 +104,7 @@ export function approvalOptions(
                   },
               ]
             : []),
+        { label: "Allow once", value: "allow-once" },
         { label: "Explicitly deny", value: "deny" },
         { label: "Skip", value: "skip" },
     ];
@@ -137,7 +143,7 @@ export async function persistApproval(
     capability: CanonicalCapability,
     choice: ApprovalChoice,
 ): Promise<void> {
-    if (choice === "skip") return;
+    if (choice === "skip" || choice === "allow-once") return;
     const key = capability.canonical as CapabilityKey;
     if (choice === "deny") {
         policy.deny[key] = true;

@@ -23,14 +23,28 @@ export const opencodeHarnessAdapter: HarnessAdapter = {
         const pluginUrl = pathToFileURL(
             join(dirname(entrypoint), "opencode-plugin.js"),
         ).href;
+        const tuiPluginUrl = pathToFileURL(
+            join(dirname(entrypoint), "opencode-tui-plugin.js"),
+        ).href;
         await mkdir(pluginDirectory);
         await writeFile(
             join(pluginDirectory, "package.json"),
-            JSON.stringify({ type: "module", main: "index.js" }),
+            JSON.stringify({
+                type: "module",
+                main: "index.js",
+                exports: {
+                    ".": "./index.js",
+                    "./tui": "./tui.js",
+                },
+            }),
         );
         await writeFile(
             join(pluginDirectory, "index.js"),
             `export { default } from ${JSON.stringify(pluginUrl)};\n`,
+        );
+        await writeFile(
+            join(pluginDirectory, "tui.js"),
+            `export { default } from ${JSON.stringify(tuiPluginUrl)};\n`,
         );
         env.OPENCODE_CONFIG_CONTENT = JSON.stringify({
             ...config,

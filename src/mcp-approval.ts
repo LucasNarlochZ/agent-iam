@@ -37,6 +37,7 @@ type Elicit = (request: ElicitationRequest) => Promise<ElicitationResponse>;
 const choices = new Set<ApprovalChoice>([
     "allow",
     "allow-context",
+    "allow-once",
     "deny",
     "skip",
 ]);
