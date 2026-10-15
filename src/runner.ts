@@ -1,8 +1,7 @@
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
-import { delimiter } from "node:path";
 import { toolNames } from "./tools.js";
 import {
     requestBrokerApproval,
@@ -11,6 +10,7 @@ import {
 import { requestApproval, type ApprovalChoice } from "./approval.js";
 import type { CanonicalCapability } from "./capability.js";
 import { createShellEnvironment } from "./shell-environment.js";
+import { getHarnessAdapter } from "./harness-adapters.js";
 
 export interface RunResult {
     code: number | null;
@@ -27,47 +27,12 @@ export interface RunnerOptions {
     ) => Promise<ApprovalChoice>;
 }
 
-const codexEnvironmentKeys = [
-    "PATH",
-    "ZDOTDIR",
-    "BASH_ENV",
-    "ENV",
-    "AGENTIAM_ORIGINAL_PATH",
-    "AGENTIAM_APPROVAL_SOCKET",
-] as const;
-
 export function commandArgsWithEnvironment(
     command: string,
     args: string[],
     env: NodeJS.ProcessEnv,
 ): string[] {
-    if (basename(command) !== "codex") return args;
-    const overrides = codexEnvironmentKeys.flatMap((key) => {
-        const value = env[key];
-        return value === undefined
-            ? []
-            : [
-                  "--config",
-                  `shell_environment_policy.set.${key}=${JSON.stringify(value)}`,
-              ];
-    });
-    const nodePath = env.AGENTIAM_NODE;
-    const entrypoint = env.AGENTIAM_ENTRYPOINT;
-    const nativeSocket = env.AGENTIAM_NATIVE_APPROVAL_SOCKET;
-    const mcpOverrides =
-        nodePath && entrypoint && nativeSocket
-            ? [
-                  "--config",
-                  `mcp_servers.agentiam.command=${JSON.stringify(nodePath)}`,
-                  "--config",
-                  `mcp_servers.agentiam.args=${JSON.stringify([entrypoint, "__mcp"])}`,
-                  "--config",
-                  `mcp_servers.agentiam.env.AGENTIAM_NATIVE_APPROVAL_SOCKET=${JSON.stringify(nativeSocket)}`,
-                  "--config",
-                  "mcp_servers.agentiam.required=true",
-              ]
-            : [];
-    return [...overrides, ...mcpOverrides, ...args];
+    return getHarnessAdapter(command).commandArgs(args, env);
 }
 
 function wrapper(nodePath: string, entrypoint: string, tool: string): string {
@@ -91,15 +56,16 @@ export async function runWithShims(
     const approvalSocket = join(directory, "approval.sock");
     const nativeApprovalSocket = join(directory, "native-approval.sock");
     let child: ReturnType<typeof spawn> | undefined;
-    const nativeCodexApproval =
-        basename(command) === "codex" && options.approvalPrompt === undefined;
+    const harness = getHarnessAdapter(command);
+    const nativeApproval =
+        harness.nativeApprovals && options.approvalPrompt === undefined;
     const brokerEnabled =
-        nativeCodexApproval ||
+        nativeApproval ||
         options.approvalPrompt !== undefined ||
         Boolean(process.stdin.isTTY && process.stderr.isTTY);
     const broker = brokerEnabled
         ? await startApprovalBroker(approvalSocket, async (capability) => {
-              if (nativeCodexApproval) {
+              if (nativeApproval) {
                   return requestBrokerApproval(
                       nativeApprovalSocket,
                       capability,
@@ -128,12 +94,12 @@ export async function runWithShims(
         AGENTIAM_ENTRYPOINT: entrypoint,
         AGENTIAM_ORIGINAL_PATH: originalPath,
         ...(broker ? { AGENTIAM_APPROVAL_SOCKET: approvalSocket } : {}),
-        ...(nativeCodexApproval
+        ...(nativeApproval
             ? { AGENTIAM_NATIVE_APPROVAL_SOCKET: nativeApprovalSocket }
             : {}),
         PATH: `${directory}${delimiter}${originalPath}`,
     };
-    const commandArgs = commandArgsWithEnvironment(command, args, childEnv);
+    const commandArgs = harness.commandArgs(args, childEnv);
     try {
         await Promise.all(
             toolNames.map(async (tool) => {
