@@ -99,8 +99,9 @@ export async function runWithShims(
             : {}),
         PATH: `${directory}${delimiter}${originalPath}`,
     };
-    const commandArgs = harness.commandArgs(args, childEnv);
     try {
+        await harness.prepare?.(childEnv, directory);
+        const commandArgs = harness.commandArgs(args, childEnv);
         await Promise.all(
             toolNames.map(async (tool) => {
                 const path = join(directory, tool);

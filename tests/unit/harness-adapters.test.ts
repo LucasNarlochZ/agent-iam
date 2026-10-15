@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
     getHarnessAdapter,
     genericHarnessAdapter,
@@ -7,7 +11,36 @@ import {
 
 describe("harness adapters", () => {
     it("uses the generic adapter for non-Codex commands", () => {
-        expect(getHarnessAdapter("opencode")).toBe(genericHarnessAdapter);
+        expect(getHarnessAdapter("unknown-agent")).toBe(genericHarnessAdapter);
+    });
+
+    it("launches OpenCode with a private server and its native approval plugin", async () => {
+        const adapter = getHarnessAdapter("/usr/bin/opencode");
+        const env = {
+            AGENTIAM_ENTRYPOINT: "/app/dist/index.js",
+            OPENCODE_CONFIG_CONTENT: JSON.stringify({ plugins: ["existing"] }),
+        };
+        const directory = await mkdtemp(join(tmpdir(), "agentiam-adapter-"));
+        await adapter.prepare?.(env, directory);
+        expect(adapter.nativeApprovals).toBe(true);
+        expect(adapter.commandArgs(["run", "hello"], env)).toEqual([
+            "run",
+            "--standalone",
+            "hello",
+        ]);
+        expect(JSON.parse(env.OPENCODE_CONFIG_CONTENT).plugins).toEqual([
+            "existing",
+            pathToFileURL(join(directory, "opencode-plugin")).href,
+        ]);
+    });
+
+    it("rejects OpenCode connections to an existing server", () => {
+        expect(() =>
+            getHarnessAdapter("opencode").commandArgs(
+                ["--server=http://localhost:4096"],
+                {},
+            ),
+        ).toThrow(/private server/);
     });
 
     it("selects adapters from the harness registry", () => {
@@ -18,7 +51,10 @@ describe("harness adapters", () => {
 
         expect(
             getHarnessAdapter("custom-agent", {
-                custom: { matches: (command) => command === "custom-agent", adapter },
+                custom: {
+                    matches: (command) => command === "custom-agent",
+                    adapter,
+                },
             }),
         ).toBe(adapter);
     });

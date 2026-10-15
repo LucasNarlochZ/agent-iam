@@ -1,8 +1,10 @@
 import { basename } from "node:path";
+import { opencodeHarnessAdapter } from "./harnesses/opencode.js";
 
 export interface HarnessAdapter {
     nativeApprovals: boolean;
     commandArgs(args: string[], env: NodeJS.ProcessEnv): string[];
+    prepare?(env: NodeJS.ProcessEnv, directory: string): void | Promise<void>;
 }
 
 export interface HarnessDefinition {
@@ -57,6 +59,10 @@ export const codexHarnessAdapter: HarnessAdapter = {
 };
 
 export const harnesses: Record<string, HarnessDefinition> = {
+    opencode: {
+        matches: (command) => basename(command) === "opencode",
+        adapter: opencodeHarnessAdapter,
+    },
     codex: {
         matches: (command) => basename(command) === "codex",
         adapter: codexHarnessAdapter,

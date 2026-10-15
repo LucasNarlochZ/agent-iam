@@ -47,7 +47,7 @@ describe("agent runner", () => {
             "x",
         ]);
         expect(
-            commandArgsWithEnvironment("opencode", ["--model", "x"], {}),
+            commandArgsWithEnvironment("unknown-agent", ["--model", "x"], {}),
         ).toEqual(["--model", "x"]);
     });
 });

@@ -143,6 +143,10 @@ For Codex, Agent IAM registers a temporary local MCP server and sends approval r
 
 Codex executes shell commands through login shells and controls their environment with `shell_environment_policy`. Agent IAM injects its temporary paths into that policy and uses scoped Zsh, Bash, and POSIX shell startup files to restore the shim directory after user startup files run. The temporary MCP configuration and sockets exist only for the wrapped Codex process.
 
+For OpenCode V2, run `agentiam run -- opencode` to use native permission prompts through a temporary plugin. Agent IAM forces a private server (`--standalone`) so shell commands inherit the wrapped environment rather than an existing background service. Connections using `--server` or `--attach` are rejected. Existing OpenCode configuration stays in place; the plugin is added only for the wrapped process. If `OPENCODE_CONFIG_CONTENT` is set, it must contain a JSON object.
+
+OpenCode prompts to save a **permanent allow rule** for the denied capability. Accepting saves that rule in the Agent IAM policy; retry the command to use it. Rejecting leaves the policy unchanged and the command denied. This integration does not offer contextual allow rules or persist explicit deny rules through the native prompt. Approvals are tied to the invoking tool's session, and the OpenCode interface is not paused. Commands outside a tool execution cannot use this native approval bridge and remain denied when no policy rule allows them. This integration is tested with OpenCode 2.0.29.
+
 An approval only saves the rule; it does not execute the denied command. Retry the command to use the updated policy. Existing explicit denies do not prompt. Unsupported capabilities, invalid policies, and audit failures continue to deny without prompting. AWS approvals are capability-wide because AWS resource constraints are not yet extracted.
 
 ## Commands
