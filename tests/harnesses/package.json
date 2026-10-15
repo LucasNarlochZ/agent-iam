@@ -1,0 +1,8 @@
+{
+    "name": "agentiam-test-harnesses",
+    "private": true,
+    "dependencies": {
+        "@openai/codex": "0.162.1",
+        "@opencode/cli": "2.0.29"
+    }
+}

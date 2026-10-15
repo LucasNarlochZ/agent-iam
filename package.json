@@ -23,7 +23,8 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "typecheck": "tsc --noEmit",
-        "test": "vitest run",
+        "test": "npm run build && vitest run --exclude \"tests/integration/real-*.test.ts\"",
+        "test:isolated": "node scripts/test-isolated.mjs",
         "test:watch": "vitest",
         "test:real:codex": "node scripts/test-real-harness.mjs codex",
         "test:real:opencode": "node scripts/test-real-harness.mjs opencode",
@@ -55,6 +56,6 @@
         "prettier": "^3.9.6",
         "tsup": "^8.5.1",
         "typescript": "^7.0.2",
-        "vitest": "^2.1.9"
+        "vitest": "^5.0.5"
     }
 }

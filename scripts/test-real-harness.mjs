@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, readFile } from "node:fs/promises";
-import { delimiter, join, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -20,31 +20,14 @@ if (process.platform === "win32") {
     throw new Error("Real harness integration tests currently require POSIX.");
 }
 
-const cache = resolve(
-    process.env.AGENTIAM_HARNESS_CACHE ??
-        join(root, ".cache/agentiam-harnesses"),
-);
-const bin = join(cache, "node_modules/.bin");
-
-await mkdir(cache, { recursive: true });
-const packages = selected.map(
-    (name) => `${versions[name].package}@${versions[name].version}`,
-);
-const install = spawnSync(
-    "npm",
-    [
-        "install",
-        "--prefix",
-        cache,
-        "--no-save",
-        "--package-lock=false",
-        ...packages,
-    ],
-    { cwd: root, stdio: "inherit" },
-);
-if (install.error) throw install.error;
-if (install.status !== 0) {
-    process.exit(install.status ?? 1);
+for (const name of selected) {
+    const version = spawnSync(name, ["--version"], { encoding: "utf8" });
+    if (version.error || version.status !== 0) {
+        throw new Error(
+            `Install ${name} on your local PATH before running test:real.`,
+        );
+    }
+    console.log(`Using local ${name}: ${version.stdout.trim()}`);
 }
 
 const build = spawnSync("npm", ["run", "build"], {
@@ -60,10 +43,7 @@ const vitest = spawnSync(
     [join(root, "node_modules/vitest/vitest.mjs"), "run", ...tests],
     {
         cwd: root,
-        env: {
-            ...process.env,
-            PATH: `${bin}${delimiter}${process.env.PATH ?? ""}`,
-        },
+        env: process.env,
         stdio: "inherit",
     },
 );

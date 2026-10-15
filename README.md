@@ -228,24 +228,43 @@ Tool integrations are registered in `src/tools.ts`. Adding a command-only integr
 
 The remaining source is organized around policy compilation/evaluation, auditing, interception, and process launching. Tests use temporary homes and fake binaries so they do not modify a developer's real Agent IAM configuration.
 
-### Real Codex Tests
+### Fast Local Tests
 
-Run the headless Codex integration tests with the pinned Codex CLI, downloaded to a project-local cache on first use:
+`npm test` builds Agent IAM locally and runs the unit and integration tests, excluding the real Codex and OpenCode suites. It uses installed project dependencies and requires no Docker daemon or installed coding harnesses. Test filters are forwarded to Vitest:
+
+```bash
+npm test
+npm test -- tests/unit/policy.test.ts
+```
+
+`npm run test:watch` runs Vitest directly on the host using your local setup. It includes real-harness suites when their CLIs are available; build Agent IAM first when testing changes exercised through `dist/index.js`.
+
+### Isolated Tests
+
+`npm run test:isolated` builds a Docker image and runs the complete suite, including real CLI integration tests, in a disposable container. It requires a running Docker daemon. Your local OpenCode, Codex, dependencies, build output, credentials, and configuration are not used. Test filters are forwarded to Vitest:
+
+```bash
+npm run test:isolated
+npm run test:isolated -- tests/integration/real-opencode.test.ts
+```
+
+The image pins Node.js 24.21.0 by digest, installs Zsh from a dated Debian package snapshot, and installs project dependencies with `npm ci`. Codex 0.162.1 and OpenCode 2.0.29 are pinned in `tests/harnesses/package.json`, with their transitive dependencies locked in its adjacent lockfile. Keep those versions consistent with `tests/harness-versions.json` when updating the harnesses; the image build checks this.
+
+Image provisioning requires registry and Debian snapshot access. Docker caches the installation layers for subsequent runs. The test container has external networking disabled; its loopback interface remains available for scripted local servers. No host directories are mounted, and the container is removed after execution. CI runs the same command.
+
+### Local CLI Compatibility Tests
+
+Use the installed CLIs from your local `PATH` to check compatibility with your setup:
 
 ```bash
 npm run test:real:codex
-```
-
-These tests use the real Codex CLI with a local scripted Responses API server, isolated `HOME` and `CODEX_HOME` directories, and a fake Git executable. They check allowed and denied shell commands, argument forwarding, tool results, and audit records without model inference or API credentials. They do not test interactive TUI approvals. The CLI version is pinned in `tests/harness-versions.json`; the first run downloads it under `.cache/agentiam-harnesses`. Set `AGENTIAM_HARNESS_CACHE` to use a different cache directory.
-
-Run the OpenCode integration test similarly, or provision both harnesses and run both suites:
-
-```bash
 npm run test:real:opencode
 npm run test:real
 ```
 
-The OpenCode test checks the plugin bridge against a real private server using a scripted command and a native permission reply, without model inference or API credentials. It does not test TUI rendering. The CLI version is pinned in `tests/harness-versions.json` and installed in the same local cache. Provisioning requires Node.js, npm, network access to the npm registry, and a POSIX environment. The normal `npm test` suite remains offline and does not download or require either harness.
+These commands build Agent IAM and run the selected real CLI suites without installing or replacing your tools. They require local project dependencies, a POSIX environment, and the selected CLIs on `PATH`; missing tools cause an error. Installed versions are printed before testing. Incompatible local versions can fail these tests: the OpenCode native-plugin fixture requires V2.
+
+The Codex tests use a local scripted Responses API server, isolated `HOME` and `CODEX_HOME` directories, and a fake Git executable. They check allowed and denied shell commands, argument forwarding, tool results, and audit records. The OpenCode tests check the plugin bridge against a private server using a scripted command and a native permission reply. Both use temporary configuration without model inference or API credentials; they do not test interactive TUI rendering or approvals in Codex.
 
 The test subprocess uses `danger-full-access` so it does not depend on host sandbox support. Only scripted tool calls are returned by the local server; these tests validate Agent IAM interception, not Codex sandboxing.
 
