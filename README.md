@@ -223,14 +223,22 @@ The remaining source is organized around policy compilation/evaluation, auditing
 
 ### Real Codex Tests
 
-With `codex` on `PATH`, run the headless Codex integration tests:
+Run the headless Codex integration tests with the pinned Codex CLI, downloaded to a project-local cache on first use:
 
 ```bash
-npm run build
-npm test -- tests/integration/real-codex.test.ts
+npm run test:real:codex
 ```
 
-These tests use the real Codex CLI with a local scripted Responses API server, isolated `HOME` and `CODEX_HOME` directories, and a fake Git executable. They check allowed and denied shell commands, argument forwarding, tool results, and audit records without model inference or API credentials. They do not test interactive TUI approvals. The tests are skipped when Codex is unavailable or on Windows. CI running this coverage should install and pin a Codex CLI version.
+These tests use the real Codex CLI with a local scripted Responses API server, isolated `HOME` and `CODEX_HOME` directories, and a fake Git executable. They check allowed and denied shell commands, argument forwarding, tool results, and audit records without model inference or API credentials. They do not test interactive TUI approvals. The CLI version is pinned in `tests/harness-versions.json`; the first run downloads it under `.cache/agentiam-harnesses`. Set `AGENTIAM_HARNESS_CACHE` to use a different cache directory.
+
+Run the OpenCode integration test similarly, or provision both harnesses and run both suites:
+
+```bash
+npm run test:real:opencode
+npm run test:real
+```
+
+The OpenCode test checks the plugin bridge against a real private server using a scripted command and a native permission reply, without model inference or API credentials. It does not test TUI rendering. The CLI version is pinned in `tests/harness-versions.json` and installed in the same local cache. Provisioning requires Node.js, npm, network access to the npm registry, and a POSIX environment. The normal `npm test` suite remains offline and does not download or require either harness.
 
 The test subprocess uses `danger-full-access` so it does not depend on host sandbox support. Only scripted tool calls are returned by the local server; these tests validate Agent IAM interception, not Codex sandboxing.
 

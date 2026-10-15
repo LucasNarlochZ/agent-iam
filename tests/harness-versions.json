@@ -1,0 +1,10 @@
+{
+    "codex": {
+        "package": "@openai/codex",
+        "version": "0.162.1"
+    },
+    "opencode": {
+        "package": "opencode-ai",
+        "version": "1.19.0"
+    }
+}

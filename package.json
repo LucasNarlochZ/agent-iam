@@ -24,7 +24,10 @@
         "format:check": "prettier --check .",
         "typecheck": "tsc --noEmit",
         "test": "vitest run",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "test:real:codex": "node scripts/test-real-harness.mjs codex",
+        "test:real:opencode": "node scripts/test-real-harness.mjs opencode",
+        "test:real": "node scripts/test-real-harness.mjs all"
     },
     "keywords": [
         "ai-agent",
