@@ -5,7 +5,11 @@ import type { HarnessAdapter } from "../harness-adapters.js";
 
 export const opencodeHarnessAdapter: HarnessAdapter = {
     nativeApprovals: true,
-    async prepare(env, directory) {
+    async prepare(env, directory, _command, version) {
+        if (version?.startsWith("1.")) {
+            env.AGENTIAM_OPENCODE_V1 = "1";
+            return;
+        }
         const entrypoint = env.AGENTIAM_ENTRYPOINT;
         if (!entrypoint) throw new Error("Missing Agent IAM entrypoint");
         const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? "{}");
@@ -36,10 +40,11 @@ export const opencodeHarnessAdapter: HarnessAdapter = {
             ],
         });
     },
-    commandArgs(args) {
+    commandArgs(args, env) {
         if (args.some((arg) => /^(--server|--attach)(=|$)/.test(arg))) {
             throw new Error("Agent IAM requires an OpenCode private server");
         }
+        if (env.AGENTIAM_OPENCODE_V1 === "1") return args;
         if (args.includes("--standalone")) return args;
         if (args[0] === "run" || args[0] === "mini") {
             return [args[0], "--standalone", ...args.slice(1)];

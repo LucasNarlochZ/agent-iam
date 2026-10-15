@@ -4,7 +4,12 @@ import { opencodeHarnessAdapter } from "./harnesses/opencode.js";
 export interface HarnessAdapter {
     nativeApprovals: boolean;
     commandArgs(args: string[], env: NodeJS.ProcessEnv): string[];
-    prepare?(env: NodeJS.ProcessEnv, directory: string): void | Promise<void>;
+    prepare?(
+        env: NodeJS.ProcessEnv,
+        directory: string,
+        command?: string,
+        version?: string,
+    ): void | Promise<void>;
 }
 
 export interface HarnessDefinition {

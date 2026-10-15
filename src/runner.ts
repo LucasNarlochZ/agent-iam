@@ -1,7 +1,8 @@
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
 import { toolNames } from "./tools.js";
 import {
     requestBrokerApproval,
@@ -26,6 +27,8 @@ export interface RunnerOptions {
         capability: CanonicalCapability,
     ) => Promise<ApprovalChoice>;
 }
+
+const execFileAsync = promisify(execFile);
 
 export function commandArgsWithEnvironment(
     command: string,
@@ -57,8 +60,25 @@ export async function runWithShims(
     const nativeApprovalSocket = join(directory, "native-approval.sock");
     let child: ReturnType<typeof spawn> | undefined;
     const harness = getHarnessAdapter(command);
+    let harnessVersion: string | undefined;
+    if (harness === getHarnessAdapter("opencode")) {
+        try {
+            const result = await execFileAsync(command, ["--version"], {
+                timeout: 5000,
+                env: baseEnv,
+            });
+            harnessVersion = result.stdout.match(/\b\d+\.\d+\.\d+\b/)?.[0];
+        } catch {
+            harnessVersion = undefined;
+        }
+    }
+    if (harnessVersion?.startsWith("1.")) {
+        baseEnv.AGENTIAM_OPENCODE_V1 = "1";
+    }
     const nativeApproval =
-        harness.nativeApprovals && options.approvalPrompt === undefined;
+        harness.nativeApprovals &&
+        baseEnv.AGENTIAM_OPENCODE_V1 !== "1" &&
+        options.approvalPrompt === undefined;
     const brokerEnabled =
         nativeApproval ||
         options.approvalPrompt !== undefined ||
@@ -100,7 +120,7 @@ export async function runWithShims(
         PATH: `${directory}${delimiter}${originalPath}`,
     };
     try {
-        await harness.prepare?.(childEnv, directory);
+        await harness.prepare?.(childEnv, directory, command, harnessVersion);
         const commandArgs = harness.commandArgs(args, childEnv);
         await Promise.all(
             toolNames.map(async (tool) => {

@@ -44,7 +44,7 @@ describe.skipIf(!opencode || process.platform === "win32")(
                     );
                     await writeFile(
                         driver,
-                        `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(join(bin, "driver.mjs"))}\n`,
+                        `#!/bin/sh\nif [ "$1" = "--version" ]; then exec "$AGENTIAM_TEST_OPENCODE" --version; fi\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(join(bin, "driver.mjs"))}\n`,
                     );
                     await chmod(driver, 0o755);
                     const marker = join(directory, "git-push.txt");

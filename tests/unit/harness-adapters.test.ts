@@ -34,6 +34,27 @@ describe("harness adapters", () => {
         ]);
     });
 
+    it("uses the inherited shim environment and terminal approvals for OpenCode V1", async () => {
+        const adapter = getHarnessAdapter("/usr/bin/opencode");
+        const env: NodeJS.ProcessEnv = {
+            AGENTIAM_ENTRYPOINT: "/app/dist/index.js",
+        };
+        const directory = await mkdtemp(join(tmpdir(), "agentiam-adapter-"));
+        await adapter.prepare?.(env, directory, "/usr/bin/opencode", "1.19.0");
+        expect(env.AGENTIAM_OPENCODE_V1).toBe("1");
+        expect(env.OPENCODE_CONFIG_CONTENT).toBeUndefined();
+        expect(adapter.commandArgs(["run", "hello"], env)).toEqual([
+            "run",
+            "hello",
+        ]);
+        expect(
+            adapter.nativeApprovals && env.AGENTIAM_OPENCODE_V1 !== "1",
+        ).toBe(false);
+        expect(() => adapter.commandArgs(["--attach"], env)).toThrow(
+            /private server/,
+        );
+    });
+
     it("rejects OpenCode connections to an existing server", () => {
         expect(() =>
             getHarnessAdapter("opencode").commandArgs(
