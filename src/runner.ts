@@ -7,11 +7,13 @@ import { toolNames } from "./tools.js";
 import {
     requestBrokerApproval,
     startApprovalBroker,
+    startFileApprovalBroker,
 } from "./approval-broker.js";
 import { requestApproval, type ApprovalChoice } from "./approval.js";
 import type { CanonicalCapability } from "./capability.js";
 import { createShellEnvironment } from "./shell-environment.js";
 import { getHarnessAdapter } from "./harnesses/index.js";
+import { startAuditBroker } from "./audit-broker.js";
 
 export interface RunResult {
     code: number | null;
@@ -60,6 +62,11 @@ export async function runWithShims(
     const directory = await mkdtemp(join(tmpdir(), "agentiam-"));
     const approvalSocket = join(directory, "approval.sock");
     const nativeApprovalSocket = join(directory, "native-approval.sock");
+    const auditDirectory = join(directory, "audit");
+    const approvalDirectory = join(directory, "approvals");
+    let auditBroker: Awaited<ReturnType<typeof startAuditBroker>> | undefined;
+    let fileApprovalBroker:
+        Awaited<ReturnType<typeof startFileApprovalBroker>> | undefined;
     let child: ReturnType<typeof spawn> | undefined;
     const harness = getHarnessAdapter(command);
     let harnessVersion: string | undefined;
@@ -85,25 +92,27 @@ export async function runWithShims(
         nativeApproval ||
         options.approvalPrompt !== undefined ||
         Boolean(process.stdin.isTTY && process.stderr.isTTY);
+    const promptForApproval = async (
+        capability: CanonicalCapability,
+    ): Promise<ApprovalChoice> => {
+        if (nativeApproval) {
+            return requestBrokerApproval(nativeApprovalSocket, capability);
+        }
+        const running = child?.exitCode === null;
+        if (running) child?.kill("SIGSTOP");
+        try {
+            return await (options.approvalPrompt ?? requestApproval)(
+                capability,
+            );
+        } finally {
+            if (running) child?.kill("SIGCONT");
+        }
+    };
     const broker = brokerEnabled
-        ? await startApprovalBroker(approvalSocket, async (capability) => {
-              if (nativeApproval) {
-                  return requestBrokerApproval(
-                      nativeApprovalSocket,
-                      capability,
-                  );
-              }
-              const running = child?.exitCode === null;
-              if (running) child?.kill("SIGSTOP");
-              try {
-                  return await (options.approvalPrompt ?? requestApproval)(
-                      capability,
-                  );
-              } finally {
-                  if (running) child?.kill("SIGCONT");
-              }
-          })
+        ? await startApprovalBroker(approvalSocket, promptForApproval)
         : undefined;
+    const fileApproval =
+        brokerEnabled && harness === getHarnessAdapter("codex");
     const shellEnv = await createShellEnvironment(
         directory,
         directory,
@@ -115,6 +124,10 @@ export async function runWithShims(
         AGENTIAM_NODE: nodePath,
         AGENTIAM_ENTRYPOINT: entrypoint,
         AGENTIAM_ORIGINAL_PATH: originalPath,
+        AGENTIAM_AUDIT_DIRECTORY: auditDirectory,
+        AGENTIAM_APPROVAL_DIRECTORY: fileApproval
+            ? approvalDirectory
+            : undefined,
         ...(broker ? { AGENTIAM_APPROVAL_SOCKET: approvalSocket } : {}),
         ...(nativeApproval
             ? { AGENTIAM_NATIVE_APPROVAL_SOCKET: nativeApprovalSocket }
@@ -122,6 +135,14 @@ export async function runWithShims(
         PATH: `${directory}${delimiter}${originalPath}`,
     };
     try {
+        auditBroker = await startAuditBroker(auditDirectory, baseEnv);
+        if (fileApproval) {
+            fileApprovalBroker = await startFileApprovalBroker(
+                approvalDirectory,
+                promptForApproval,
+                baseEnv,
+            );
+        }
         await harness.prepare?.(childEnv, directory, command, harnessVersion);
         const commandArgs = harness.commandArgs(args, childEnv);
         await Promise.all(
@@ -153,7 +174,18 @@ export async function runWithShims(
             });
         });
     } finally {
-        await broker?.close();
-        await rm(directory, { recursive: true, force: true });
+        try {
+            await auditBroker?.close();
+        } finally {
+            try {
+                try {
+                    await fileApprovalBroker?.close();
+                } finally {
+                    await broker?.close();
+                }
+            } finally {
+                await rm(directory, { recursive: true, force: true });
+            }
+        }
     }
 }

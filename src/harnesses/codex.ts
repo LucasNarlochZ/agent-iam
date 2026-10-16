@@ -7,6 +7,8 @@ const environmentKeys = [
     "ENV",
     "AGENTIAM_ORIGINAL_PATH",
     "AGENTIAM_APPROVAL_SOCKET",
+    "AGENTIAM_AUDIT_DIRECTORY",
+    "AGENTIAM_APPROVAL_DIRECTORY",
 ] as const;
 
 export const codexHarnessAdapter: HarnessAdapter = {

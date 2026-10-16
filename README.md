@@ -141,6 +141,8 @@ When an intercepted command runs inside an agent, its streams are usually not at
 
 For Codex, Agent IAM registers a temporary local MCP server and sends approval requests through MCP elicitation. Codex displays the choices in its native interface, so Agent IAM does not take over Codex's terminal or pause its TUI. Codex must use an interactive approval policy that permits MCP elicitations; otherwise, the request is skipped and the command remains denied.
 
+Codex's sandboxed shims send approval requests through a private temporary file channel rather than a Unix socket. The parent runner forwards the request to the MCP server outside the sandbox, saves any selected policy change, and returns the choice after saving succeeds. The sandbox therefore needs access to the temporary channel directory, but not write access to `~/.agentiam`. Requests time out after five minutes; an expired request does not save a newly selected policy change. Broker and persistence errors leave the action denied and print the underlying error. Other harnesses retain their existing socket-based approval bridges.
+
 Codex executes shell commands through login shells and controls their environment with `shell_environment_policy`. Agent IAM injects its temporary paths into that policy and uses scoped Zsh, Bash, and POSIX shell startup files to restore the shim directory after user startup files run. The temporary MCP configuration and sockets exist only for the wrapped Codex process.
 
 For OpenCode V1 and V2, run `agentiam run -- opencode`. Agent IAM detects the installed CLI version. V2 uses native permission prompts through a temporary plugin and forces a private server (`--standalone`) so shell commands inherit the wrapped environment. V1 uses the inherited shim environment and the regular terminal approval prompt; it does not load the V2 plugin or add V2-only command-line flags. Both versions reject connections using `--server` or `--attach`. Existing OpenCode configuration stays in place; the V2 plugin is added only for the wrapped process. If `OPENCODE_CONFIG_CONTENT` is set, it must contain a JSON object.
@@ -183,6 +185,10 @@ Example output from an intercepted session:
 ## Audit Log
 
 Every authorization attempt is appended to `~/.agentiam/audit.jsonl`. If the audit entry cannot be written, the command is denied and the real binary is not executed.
+
+When launched through `agentiam run`, shims send audit records to the parent runner through a private file-based channel in its temporary directory. The parent writes the audit log using its own environment and acknowledges the write before the shim can execute an allowed command. Codex receives the channel path through its shell environment configuration. This lets sandboxed commands log without write access to `~/.agentiam` or Unix-socket connections.
+
+The sandbox must permit reading and writing the temporary channel directory; a sandbox that blocks that directory still denies the command. Agent IAM does not broaden sandbox permissions. A missing acknowledgement after five seconds or an audit-write error denies execution, with the underlying error printed to stderr. An acknowledgement failure can leave a recorded attempt even though execution was denied. The channel is removed when the wrapped process exits. Direct shim invocations without a parent channel write the audit log themselves.
 
 Each line is a JSON object containing the timestamp, structured capability, decision, tool, original argument array, display command, policy path, and decision reason:
 

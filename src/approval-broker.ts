@@ -1,6 +1,8 @@
 import { createConnection, createServer } from "node:net";
 import type { CanonicalCapability } from "./capability.js";
-import type { ApprovalChoice } from "./approval.js";
+import { persistApproval, type ApprovalChoice } from "./approval.js";
+import { isCapabilityKey, loadPolicy } from "./policy/schema.js";
+import { requestFileBroker, startFileBroker } from "./file-broker.js";
 
 const choices = new Set<ApprovalChoice>([
     "allow",
@@ -9,6 +11,8 @@ const choices = new Set<ApprovalChoice>([
     "deny",
     "skip",
 ]);
+
+const approvalTimeout = 300_000;
 
 function parseCapability(value: string): CanonicalCapability | undefined {
     try {
@@ -25,6 +29,63 @@ function parseCapability(value: string): CanonicalCapability | undefined {
     } catch {
         return undefined;
     }
+}
+
+export function startFileApprovalBroker(
+    directory: string,
+    prompt: (capability: CanonicalCapability) => Promise<ApprovalChoice>,
+    env: NodeJS.ProcessEnv,
+): Promise<{ close(): Promise<void> }> {
+    return startFileBroker(directory, async (input) => {
+        const request = JSON.parse(input) as {
+            capability?: unknown;
+            expiresAt?: unknown;
+        };
+        const capability = parseCapability(JSON.stringify(request?.capability));
+        const expiresAt = request?.expiresAt;
+        if (
+            !capability ||
+            !isCapabilityKey(capability.canonical) ||
+            typeof expiresAt !== "number" ||
+            !Number.isFinite(expiresAt) ||
+            expiresAt <= Date.now()
+        ) {
+            throw new Error("Invalid or expired approval request");
+        }
+        const choice = await prompt(capability);
+        if (!choices.has(choice)) throw new Error("Invalid approval choice");
+        if (Date.now() >= expiresAt) {
+            throw new Error("Approval request expired");
+        }
+        if (choice !== "skip" && choice !== "allow-once") {
+            const loaded = await loadPolicy(env);
+            if (Date.now() >= expiresAt) {
+                throw new Error("Approval request expired");
+            }
+            await persistApproval(
+                loaded.path,
+                loaded.policy,
+                capability,
+                choice,
+            );
+        }
+        return choice;
+    });
+}
+
+export async function requestFileApproval(
+    directory: string,
+    capability: CanonicalCapability,
+): Promise<ApprovalChoice> {
+    const choice = await requestFileBroker(
+        directory,
+        { capability, expiresAt: Date.now() + approvalTimeout },
+        approvalTimeout,
+    );
+    if (typeof choice !== "string" || !choices.has(choice as ApprovalChoice)) {
+        throw new Error("Invalid approval broker response");
+    }
+    return choice as ApprovalChoice;
 }
 
 export async function startApprovalBroker(
@@ -55,7 +116,10 @@ export async function startApprovalBroker(
             const handle = async () => {
                 try {
                     socket.end(`${await prompt(capability)}\n`);
-                } catch {
+                } catch (error) {
+                    process.stderr.write(
+                        `[agentiam] Approval request failed: ${error instanceof Error ? error.message : String(error)}\n`,
+                    );
                     socket.end("skip\n");
                 }
             };

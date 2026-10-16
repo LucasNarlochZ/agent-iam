@@ -5,6 +5,7 @@ import {
 } from "./policy/schema.js";
 import { evaluatePolicies } from "./policy/engine.js";
 import { appendAuditRecord, renderCommand } from "./audit.js";
+import { requestAuditWrite } from "./audit-broker.js";
 import { resolveExecutable, spawnInherited } from "./process.js";
 import {
     persistApproval,
@@ -13,7 +14,10 @@ import {
 } from "./approval.js";
 import type { CanonicalCapability } from "./capability.js";
 import { tools, type ToolName } from "./tools.js";
-import { requestBrokerApproval } from "./approval-broker.js";
+import {
+    requestBrokerApproval,
+    requestFileApproval,
+} from "./approval-broker.js";
 
 export interface ShimOptions {
     tool: ToolName;
@@ -68,11 +72,18 @@ export async function runShim(options: ShimOptions): Promise<number> {
         reason,
     } as const;
     try {
-        await appendAuditRecord(record, options.env);
-    } catch {
+        if (options.env.AGENTIAM_AUDIT_DIRECTORY) {
+            await requestAuditWrite(
+                options.env.AGENTIAM_AUDIT_DIRECTORY,
+                record,
+            );
+        } else {
+            await appendAuditRecord(record, options.env);
+        }
+    } catch (error) {
         write(
             options.stderr,
-            `[agentiam] DENY ${capability.canonical} (audit log unavailable)`,
+            `[agentiam] DENY ${capability.canonical} (audit log unavailable): ${error instanceof Error ? error.message : String(error)}`,
         );
         return 126;
     }
@@ -83,22 +94,43 @@ export async function runShim(options: ShimOptions): Promise<number> {
             loadedPolicy &&
             isCapabilityKey(capability.canonical)
         ) {
+            const parentPersistsApproval =
+                options.promptForApproval === undefined &&
+                Boolean(options.env.AGENTIAM_APPROVAL_DIRECTORY);
             const prompt =
                 options.promptForApproval ??
-                (options.env.AGENTIAM_APPROVAL_SOCKET
-                    ? (requested: CanonicalCapability) =>
-                          requestBrokerApproval(
-                              options.env.AGENTIAM_APPROVAL_SOCKET!,
-                              requested,
-                          ).catch(() => "skip" as const)
-                    : requestApproval);
+                (async (requested: CanonicalCapability) => {
+                    try {
+                        if (options.env.AGENTIAM_APPROVAL_DIRECTORY) {
+                            return await requestFileApproval(
+                                options.env.AGENTIAM_APPROVAL_DIRECTORY,
+                                requested,
+                            );
+                        }
+                        if (options.env.AGENTIAM_APPROVAL_SOCKET) {
+                            return await requestBrokerApproval(
+                                options.env.AGENTIAM_APPROVAL_SOCKET,
+                                requested,
+                            );
+                        }
+                        return await requestApproval(requested);
+                    } catch (error) {
+                        write(
+                            options.stderr,
+                            `[agentiam] Approval broker unavailable: ${error instanceof Error ? error.message : String(error)}`,
+                        );
+                        return "skip" as const;
+                    }
+                });
             const choice = await prompt(capability);
-            await persistApproval(
-                loadedPolicy.path,
-                loadedPolicy.policy,
-                capability,
-                choice,
-            );
+            if (!parentPersistsApproval) {
+                await persistApproval(
+                    loadedPolicy.path,
+                    loadedPolicy.policy,
+                    capability,
+                    choice,
+                );
+            }
             if (choice === "allow-once") {
                 decision = "ALLOW";
                 write(
@@ -121,7 +153,7 @@ export async function runShim(options: ShimOptions): Promise<number> {
             ) {
                 write(
                     options.stderr,
-                    '[agentiam] Approval was skipped or unavailable. If Codex is running with --yolo or approval_policy = "never", it cannot show this prompt. Restart without --yolo using --ask-for-approval on-request. The command remains denied.',
+                    "[agentiam] Approval was skipped or unavailable. Check broker errors and the harness's native approval settings. The command remains denied.",
                 );
             }
         }
