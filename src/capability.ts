@@ -1,26 +1,11 @@
-export interface ConstraintMap {
-    git: {
-        paths?: string[];
-        branches?: string[];
-    };
-    github: {
-        repository?: string;
-        pullRequest?: number;
-    };
+export type ConstraintValue = string | string[] | number | boolean | undefined;
+
+export interface CanonicalCapability<Service extends string = string> {
+    service: Service;
+    action: string;
+    canonical: string;
+    constraints?: Record<string, ConstraintValue>;
 }
-
-export type CapabilityService = keyof ConstraintMap;
-
-export type CanonicalCapability<
-    Service extends CapabilityService = CapabilityService,
-> = {
-    [Key in Service]: {
-        service: Key;
-        action: string;
-        canonical: string;
-        constraints?: ConstraintMap[Key];
-    };
-}[Service];
 
 export function normalizeSegment(value: string): string {
     const segment = value
@@ -30,7 +15,7 @@ export function normalizeSegment(value: string): string {
     return segment || "unknown";
 }
 
-export function capability<Service extends CapabilityService>(
+export function capability<Service extends string>(
     service: Service,
     action: string,
     segment?: string,
@@ -41,13 +26,11 @@ export function capability<Service extends CapabilityService>(
     const canonical = normalizedSegment
         ? `${service}.${normalizedSegment}.${normalizedAction}`
         : `${service}.${normalizedAction}`;
-    return (
-        normalizedSegment
-            ? {
-                  service,
-                  action: normalizedAction,
-                  canonical,
-              }
-            : { service, action: normalizedAction, canonical }
-    ) as CanonicalCapability<Service>;
+    return normalizedSegment
+        ? {
+              service,
+              action: normalizedAction,
+              canonical,
+          }
+        : { service, action: normalizedAction, canonical };
 }

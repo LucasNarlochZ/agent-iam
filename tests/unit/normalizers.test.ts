@@ -6,6 +6,46 @@ import { GitCliAdapter } from "../../src/adapters/git.js";
 import { GithubCliAdapter } from "../../src/adapters/gh.js";
 
 describe("command adapters", () => {
+    it("normalizes AWS service operations and leading global options", async () => {
+        const { AwsCliAdapter } = await import("../../src/adapters/aws.js");
+        const awsAdapter = new AwsCliAdapter();
+
+        await expect(
+            awsAdapter.normalize([
+                "--profile",
+                "development",
+                "sts",
+                "get-caller-identity",
+            ]),
+        ).resolves.toMatchObject({
+            service: "aws",
+            action: "get-caller-identity",
+            canonical: "aws.sts.get-caller-identity",
+        });
+        await expect(
+            awsAdapter.normalize(["--region=us-east-1", "s3", "cp"]),
+        ).resolves.toMatchObject({
+            canonical: "aws.s3.cp",
+        });
+        await expect(
+            awsAdapter.normalize([
+                "--no-cli-pager",
+                "ec2",
+                "describe-instances",
+            ]),
+        ).resolves.toMatchObject({
+            canonical: "aws.ec2.describe-instances",
+        });
+        await expect(awsAdapter.normalize([])).resolves.toMatchObject({
+            canonical: "aws.unknown.unknown",
+        });
+        await expect(
+            awsAdapter.normalize(["--profile"]),
+        ).resolves.toMatchObject({
+            canonical: "aws.unknown.unknown",
+        });
+    });
+
     it("normalizes git commands", async () => {
         const gitAdapter = new GitCliAdapter(
             async () => ["src/policy.ts"],

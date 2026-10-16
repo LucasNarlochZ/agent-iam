@@ -44,7 +44,7 @@ async function currentBranch(
     }
 }
 
-export class GitCliAdapter implements Adapter<"git"> {
+export class GitCliAdapter implements Adapter {
     constructor(
         private readonly readStagedPaths = stagedPaths,
         private readonly readCurrentBranch = currentBranch,

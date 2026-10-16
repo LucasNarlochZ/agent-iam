@@ -1,5 +1,5 @@
 {
-    "name": "@lucasnarz/agent-iam",
+    "name": "@agentiam-dev/core",
     "version": "0.2.0",
     "description": "Capability-based policy enforcement for agent CLI actions",
     "type": "module",
@@ -23,11 +23,16 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "typecheck": "tsc --noEmit",
-        "test": "vitest run",
-        "test:watch": "vitest"
+        "test": "npm run build && vitest run --exclude \"tests/integration/real-*.test.ts\"",
+        "test:isolated": "node scripts/test-isolated.mjs",
+        "test:watch": "vitest",
+        "test:real:codex": "node scripts/test-real-harness.mjs codex",
+        "test:real:opencode": "node scripts/test-real-harness.mjs opencode",
+        "test:real": "node scripts/test-real-harness.mjs all"
     },
     "keywords": [
         "ai-agent",
+        "aws",
         "authorization",
         "policy",
         "prolog",
@@ -41,6 +46,8 @@
         "url": "git+https://github.com/LucasNarZ/agent-iam.git"
     },
     "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.32.1",
+        "@opencode/plugin": "^2.0.29",
         "tau-prolog": "^0.3.4",
         "yaml": "^2.9.0"
     },
@@ -49,6 +56,6 @@
         "prettier": "^3.9.6",
         "tsup": "^8.5.1",
         "typescript": "^7.0.2",
-        "vitest": "^2.1.9"
+        "vitest": "^5.0.5"
     }
 }
