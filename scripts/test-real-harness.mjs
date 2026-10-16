@@ -37,7 +37,10 @@ const build = spawnSync("npm", ["run", "build"], {
 if (build.error) throw build.error;
 if (build.status !== 0) process.exit(build.status ?? 1);
 
-const tests = selected.map((name) => `tests/integration/real-${name}.test.ts`);
+const tests = selected.flatMap((name) => [
+    `tests/integration/real-${name}.test.ts`,
+    `tests/integration/real-${name}-tui.test.ts`,
+]);
 const vitest = spawnSync(
     process.execPath,
     [join(root, "node_modules/vitest/vitest.mjs"), "run", ...tests],

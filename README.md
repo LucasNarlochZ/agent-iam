@@ -252,6 +252,7 @@ npm test -- tests/unit/policy.test.ts
 ```bash
 npm run test:isolated
 npm run test:isolated -- tests/integration/real-opencode.test.ts
+npm run test:isolated -- tests/integration/real-codex-tui.test.ts
 ```
 
 The image pins Node.js 24.21.0 by digest, installs Zsh from a dated Debian package snapshot, and installs project dependencies with `npm ci`. Codex 0.162.1 and OpenCode 2.0.29 are pinned in `tests/harnesses/package.json`, with their transitive dependencies locked in its adjacent lockfile. Keep those versions consistent with `tests/harness-versions.json` when updating the harnesses; the image build checks this.
@@ -270,7 +271,11 @@ npm run test:real
 
 These commands build Agent IAM and run the selected real CLI suites without installing or replacing your tools. They require local project dependencies, a POSIX environment, and the selected CLIs on `PATH`; missing tools cause an error. Installed versions are printed before testing. Incompatible local versions can fail these tests: the OpenCode native-plugin fixture requires V2.
 
-The Codex tests use a local scripted Responses API server, isolated `HOME` and `CODEX_HOME` directories, and a fake Git executable. They check allowed and denied shell commands, argument forwarding, tool results, and audit records. The OpenCode tests check the plugin bridge against a private server using a scripted command and a native permission reply. Both use temporary configuration without model inference or API credentials; they do not test interactive TUI rendering or approvals in Codex.
+The Codex tests use a local scripted Responses API server, isolated `HOME` and `CODEX_HOME` directories, and fake Git or AWS executables. They check allowed and denied shell commands, argument forwarding, tool results, and audit records. The OpenCode tests check the plugin bridge against a private server using a scripted command and a native permission reply. Both use temporary configuration without model inference or API credentials.
+
+On Linux, the Codex suite also launches `agentiam run -- codex` in a pseudo-terminal and answers its real native approval dialog with keyboard input. It covers allow, allow once, explicit deny, skip, Escape cancellation, and unavailable elicitation with approval policy `never`. Assertions check policy persistence, initial command execution, a subsequent retry, and audit records. These tests run in `test:isolated` and `test:real:codex`, but not `npm test`; the TUI cases are skipped outside Linux. Local TUI runs require util-linux `/usr/bin/script` and `stty`, already present in the isolated image.
+
+The terminal driver uses fixed dimensions, answers terminal capability queries, and waits for matching output to settle for 100 milliseconds before sending a key. Codex drains queued input when opening security-sensitive dialogs, so sending a key as soon as its label appears can discard the answer. Timeouts include a terminal transcript for diagnosis. These are behavioral dialog tests, not visual snapshot tests.
 
 The test subprocess uses `danger-full-access` so it does not depend on host sandbox support. Only scripted tool calls are returned by the local server; these tests validate Agent IAM interception, not Codex sandboxing.
 

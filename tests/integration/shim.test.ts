@@ -143,7 +143,7 @@ describe("command shim", () => {
         await expect(readFile(output, "utf8")).rejects.toThrow();
     });
 
-    it("explains when a Codex policy approval is skipped or unavailable", async () => {
+    it("explains when a native policy approval is skipped or unavailable", async () => {
         const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
         const bin = await mkdtemp(join(tmpdir(), "agentiam-shim-bin-"));
         const cwd = await mkdtemp(join(tmpdir(), "agentiam-shim-cwd-"));
@@ -177,7 +177,8 @@ describe("command shim", () => {
 
         expect(code).toBe(126);
         expect(message).toContain("Approval was skipped or unavailable");
-        expect(message).toContain("--ask-for-approval on-request");
+        expect(message).toContain("Check broker errors");
+        expect(message).toContain("the harness's native approval settings");
         expect(message).toContain("command remains denied");
     });
 
