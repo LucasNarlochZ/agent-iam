@@ -52,7 +52,7 @@
         "yaml": "^2.9.0"
     },
     "devDependencies": {
-        "@types/node": "^20.17.0",
+        "@types/node": "^22.20.5",
         "prettier": "^3.9.6",
         "tsup": "^8.5.1",
         "typescript": "^7.0.2",
