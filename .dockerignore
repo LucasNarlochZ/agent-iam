@@ -1,0 +1,13 @@
+**
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsup.config.ts
+!vitest.config.ts
+!src/
+!src/**
+!tests/
+!tests/**
+tests/harnesses/node_modules/
+!examples/
+!examples/policy.yaml

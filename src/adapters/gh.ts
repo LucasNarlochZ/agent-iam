@@ -55,7 +55,7 @@ function pullRequestNumber(positional: string[]): number | undefined {
     return value && /^\d+$/.test(value) ? Number(value) : undefined;
 }
 
-export class GithubCliAdapter implements Adapter<"github"> {
+export class GithubCliAdapter implements Adapter {
     async normalize(
         args: string[],
         env: NodeJS.ProcessEnv = process.env,

@@ -2,6 +2,7 @@ import pl from "tau-prolog";
 import type { CanonicalCapability } from "../capability.js";
 import type { CapabilityKey, Policy, PolicyRules } from "./schema.js";
 import { compilePolicy, escapePrologAtom } from "./compiler.js";
+import { toolForCapability } from "../tools.js";
 
 export interface PolicyDecision {
     decision: "ALLOW" | "DENY";
@@ -13,23 +14,13 @@ export class PolicyEngineError extends Error {}
 type Session = ReturnType<typeof pl.create>;
 
 function constraintTerms(capability: CanonicalCapability): string {
-    const constraints =
-        capability.service === "github"
-            ? capability.constraints?.repository
-                ? [
-                      `constraint(repos, '${escapePrologAtom(capability.constraints.repository)}')`,
-                  ]
-                : []
-            : [
-                  ...(capability.constraints?.paths ?? []).map(
-                      (path) =>
-                          `constraint(paths, '${escapePrologAtom(path)}')`,
-                  ),
-                  ...(capability.constraints?.branches ?? []).map(
-                      (branch) =>
-                          `constraint(branches, '${escapePrologAtom(branch)}')`,
-                  ),
-              ];
+    const constraints = (
+        toolForCapability(capability)?.policyConstraints(capability) ?? []
+    ).flatMap(({ name, values }) =>
+        values.map(
+            (value) => `constraint(${name}, '${escapePrologAtom(value)}')`,
+        ),
+    );
     return `[${constraints.join(", ")}]`;
 }
 
