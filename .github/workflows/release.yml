@@ -70,6 +70,9 @@ jobs:
             - name: Build
               run: npm run build
 
+            - name: Install Zsh for login-shell integration test
+              run: sudo apt-get update && sudo apt-get install --no-install-recommends -y zsh
+
             - name: Run tests
               run: npm test
 
@@ -116,6 +119,9 @@ jobs:
 
             - name: Build
               run: npm run build
+
+            - name: Install Zsh for login-shell integration test
+              run: sudo apt-get update && sudo apt-get install --no-install-recommends -y zsh
 
             - name: Run tests
               run: npm test
