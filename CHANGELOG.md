@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/LucasNarlochZ/agent-iam/compare/core-v0.3.0...core-v0.3.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* install zsh for login shell integration tests ([e18a3e3](https://github.com/LucasNarlochZ/agent-iam/commit/e18a3e321afed84b5c1090205d668e39df6658bb))
+
 ## [0.3.0](https://github.com/LucasNarlochZ/agent-iam/compare/core-v0.2.0...core-v0.3.0) (2026-10-20)
 
 
