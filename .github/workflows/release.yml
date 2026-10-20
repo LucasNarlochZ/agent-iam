@@ -126,5 +126,8 @@ jobs:
             - name: Run tests
               run: npm test
 
+            - name: Align repository metadata with provenance
+              run: npm pkg set "repository.url=https://github.com/${GITHUB_REPOSITORY}"
+
             - name: Publish existing release to npm using OIDC
               run: npm publish --access public
