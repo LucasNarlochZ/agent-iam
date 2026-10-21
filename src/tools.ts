@@ -2,7 +2,8 @@ import type { CanonicalCapability } from "./capability.js";
 import { AwsCliAdapter } from "./adapters/aws.js";
 import { GithubCliAdapter } from "./adapters/gh.js";
 import { GitCliAdapter } from "./adapters/git.js";
-import type { CliAdapter } from "./adapters/interfaces.js";
+import { GithubMcpAdapter } from "./adapters/github-mcp.js";
+import type { Adapter, CliAdapter, McpAdapter } from "./adapters/interfaces.js";
 
 export interface CapabilityDefinition {
     constraints: readonly string[];
@@ -14,26 +15,27 @@ export interface PolicyConstraintValue {
     label: string;
 }
 
-interface ToolDefinition {
+export interface ServiceDefinition {
     service: string;
-    adapter: CliAdapter;
     capabilityDefinition(canonical: string): CapabilityDefinition | undefined;
     policyConstraints(capability: CanonicalCapability): PolicyConstraintValue[];
+}
+
+export interface Tool<A extends Adapter<unknown>> extends ServiceDefinition {
+    adapter: A;
 }
 
 type ConstraintReader = (
     capability: CanonicalCapability,
 ) => Omit<PolicyConstraintValue, "name"> | undefined;
 
-function staticTool(
+function staticService(
     service: string,
-    adapter: CliAdapter,
     actions: Record<string, readonly string[]>,
     readers: Record<string, ConstraintReader>,
-): ToolDefinition {
+): ServiceDefinition {
     return {
         service,
-        adapter,
         capabilityDefinition(canonical) {
             const prefix = `${service}.`;
             if (!canonical.startsWith(prefix)) return undefined;
@@ -50,6 +52,13 @@ function staticTool(
             });
         },
     };
+}
+
+function defineTool<A extends Adapter<unknown>>(
+    service: ServiceDefinition,
+    adapter: A,
+): Tool<A> {
+    return { ...service, adapter };
 }
 
 const gitActions = {
@@ -83,8 +92,8 @@ const githubActions = {
     "repo.view": ["repos"],
 } as const;
 
-export const tools = {
-    git: staticTool("git", new GitCliAdapter(), gitActions, {
+export const services = {
+    git: staticService("git", gitActions, {
         paths: (capability) => {
             const paths = capability.constraints?.paths;
             return Array.isArray(paths) && paths.length > 0
@@ -101,7 +110,7 @@ export const tools = {
                 : undefined;
         },
     }),
-    gh: staticTool("github", new GithubCliAdapter(), githubActions, {
+    github: staticService("github", githubActions, {
         repos: (capability) => {
             const repository = capability.constraints?.repository;
             return typeof repository === "string"
@@ -114,7 +123,6 @@ export const tools = {
     }),
     aws: {
         service: "aws",
-        adapter: new AwsCliAdapter(),
         capabilityDefinition(canonical: string) {
             return /^aws\.(?!unknown(?:\.|$))[a-z0-9_-]+\.(?!unknown$)[a-z0-9_-]+$/.test(
                 canonical,
@@ -124,32 +132,44 @@ export const tools = {
         },
         policyConstraints: () => [],
     },
-} satisfies Record<string, ToolDefinition>;
+} satisfies Record<string, ServiceDefinition>;
 
-export type ToolName = keyof typeof tools;
+export const cliTools = {
+    git: defineTool(services.git, new GitCliAdapter()),
+    gh: defineTool(services.github, new GithubCliAdapter()),
+    aws: defineTool(services.aws, new AwsCliAdapter()),
+} satisfies Record<string, Tool<CliAdapter>>;
 
-export const toolNames = Object.keys(tools) as ToolName[];
+export const mcpTools = {
+    github: defineTool(services.github, new GithubMcpAdapter()),
+} satisfies Record<string, Tool<McpAdapter>>;
+
+export const tools = cliTools;
+
+export type ToolName = keyof typeof cliTools;
+
+export const toolNames = Object.keys(cliTools) as ToolName[];
 
 export function isToolName(value: string | undefined): value is ToolName {
-    return value !== undefined && Object.hasOwn(tools, value);
+    return value !== undefined && Object.hasOwn(cliTools, value);
 }
 
 export function capabilityDefinitionFor(
     canonical: string,
 ): CapabilityDefinition | undefined {
-    for (const tool of Object.values(tools)) {
-        const definition = tool.capabilityDefinition(canonical);
+    for (const service of Object.values(services)) {
+        const definition = service.capabilityDefinition(canonical);
         if (definition) return definition;
     }
     return undefined;
 }
 
-export function toolForCapability(
+export function serviceForCapability(
     capability: CanonicalCapability,
-): ToolDefinition | undefined {
-    return Object.values(tools).find(
-        (tool) =>
-            tool.service === capability.service &&
-            tool.capabilityDefinition(capability.canonical) !== undefined,
+): ServiceDefinition | undefined {
+    return Object.values(services).find(
+        (service) =>
+            service.service === capability.service &&
+            service.capabilityDefinition(capability.canonical) !== undefined,
     );
 }
