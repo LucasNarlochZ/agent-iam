@@ -1,5 +1,5 @@
 import { appendAuditRecord, type AuditRecord } from "./audit.js";
-import { toolNames } from "./tools.js";
+import { isToolName } from "./tools.js";
 import { requestFileBroker, startFileBroker } from "./file-broker.js";
 
 function parseRecord(input: string): AuditRecord {
@@ -13,7 +13,7 @@ function parseRecord(input: string): AuditRecord {
         typeof record.capability.action !== "string" ||
         typeof record.capability.canonical !== "string" ||
         !["ALLOW", "DENY"].includes(record.decision) ||
-        !toolNames.includes(record.tool) ||
+        (!isToolName(record.tool) && record.tool !== "github-mcp") ||
         !Array.isArray(record.arguments) ||
         !record.arguments.every((argument) => typeof argument === "string") ||
         typeof record.command !== "string" ||

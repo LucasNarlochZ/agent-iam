@@ -65,7 +65,15 @@ const gitActions = {
 } as const;
 
 const githubActions = {
+    "file.read": ["repos"],
+    "file.write": ["repos"],
+    "issue.list": ["repos"],
+    "issue.view": ["repos"],
+    "issue.create": ["repos"],
+    "issue.edit": ["repos"],
+    "issue.comment": ["repos"],
     "pr.create": ["repos"],
+    "pr.edit": ["repos"],
     "pr.merge": ["repos"],
     "pr.view": ["repos"],
     "pr.status": ["repos"],
@@ -98,7 +106,7 @@ export const tools = {
             const repository = capability.constraints?.repository;
             return typeof repository === "string"
                 ? {
-                      values: [repository],
+                      values: [repository.toLowerCase()],
                       label: `repository ${repository}`,
                   }
                 : undefined;
