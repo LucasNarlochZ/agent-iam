@@ -1,0 +1,133 @@
+name: Release
+
+on:
+    push:
+        branches: [main]
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: Existing release tag to publish (for example, core-v0.3.0)
+                required: true
+                type: string
+
+permissions:
+    contents: read
+
+concurrency:
+    group: release
+    cancel-in-progress: false
+
+jobs:
+    release-please:
+        if: github.event_name == 'push'
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        permissions:
+            contents: write
+            pull-requests: write
+        outputs:
+            release_created: ${{ steps.release.outputs.release_created }}
+            tag_name: ${{ steps.release.outputs.tag_name }}
+        steps:
+            - name: Create or update release PR
+              id: release
+              uses: googleapis/release-please-action@v4
+              with:
+                  config-file: release-please-config.json
+                  manifest-file: .release-please-manifest.json
+
+    publish:
+        needs: release-please
+        if: github.event_name == 'push' && needs.release-please.outputs.release_created == 'true'
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - name: Check out release tag
+              uses: actions/checkout@v6
+              with:
+                  ref: ${{ needs.release-please.outputs.tag_name }}
+                  persist-credentials: false
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 24
+                  registry-url: https://registry.npmjs.org
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Check formatting
+              run: npm run format:check
+
+            - name: Typecheck
+              run: npm run typecheck
+
+            - name: Build
+              run: npm run build
+
+            - name: Install Zsh for login-shell integration test
+              run: sudo apt-get update && sudo apt-get install --no-install-recommends -y zsh
+
+            - name: Run tests
+              run: npm test
+
+            - name: Publish to npm using OIDC
+              run: npm publish --access public
+
+    publish-existing-release:
+        if: github.event_name == 'workflow_dispatch'
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - name: Check out requested release tag
+              uses: actions/checkout@v6
+              with:
+                  ref: ${{ inputs.tag }}
+                  persist-credentials: false
+
+            - name: Verify tag matches package version
+              env:
+                  PUBLISH_TAG: ${{ inputs.tag }}
+              run: |
+                  PACKAGE_VERSION="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+                  EXPECTED_TAG="core-v${PACKAGE_VERSION}"
+                  if [ "$PUBLISH_TAG" != "$EXPECTED_TAG" ]; then
+                    echo "Requested tag $PUBLISH_TAG does not match package version; expected $EXPECTED_TAG"
+                    exit 1
+                  fi
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 24
+                  registry-url: https://registry.npmjs.org
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Typecheck
+              run: npm run typecheck
+
+            - name: Build
+              run: npm run build
+
+            - name: Install Zsh for login-shell integration test
+              run: sudo apt-get update && sudo apt-get install --no-install-recommends -y zsh
+
+            - name: Run tests
+              run: npm test
+
+            - name: Align repository metadata with provenance
+              run: npm pkg set "repository.url=https://github.com/${GITHUB_REPOSITORY}"
+
+            - name: Publish existing release to npm using OIDC
+              run: npm publish --access public

@@ -1,6 +1,6 @@
 {
     "name": "@agentiam-dev/core",
-    "version": "0.2.0",
+    "version": "0.3.1",
     "description": "Capability-based policy enforcement for agent CLI actions",
     "type": "module",
     "bin": {
@@ -43,7 +43,7 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/LucasNarZ/agent-iam.git"
+        "url": "https://github.com/LucasNarlochZ/agent-iam"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.32.1",
