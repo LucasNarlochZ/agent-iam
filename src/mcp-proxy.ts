@@ -129,6 +129,7 @@ export async function serveMcpProxy(
     upstream.onclose = stop;
     server.onclose = stop;
     process.stdin.once("end", stop);
+    process.stdin.read(0);
     process.once("SIGINT", stop);
     process.once("SIGTERM", stop);
     try {
