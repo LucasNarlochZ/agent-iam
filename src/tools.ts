@@ -2,7 +2,11 @@ import type { CanonicalCapability } from "./capability.js";
 import { AwsCliAdapter } from "./adapters/aws.js";
 import { GithubCliAdapter } from "./adapters/gh.js";
 import { GitCliAdapter } from "./adapters/git.js";
-import { GithubMcpAdapter } from "./adapters/github-mcp.js";
+import {
+    GithubMcpAdapter,
+    matchesGithubMcpCommand,
+    matchesGithubMcpUrl,
+} from "./adapters/github-mcp.js";
 import type { Adapter, CliAdapter, McpAdapter } from "./adapters/interfaces.js";
 
 export interface CapabilityDefinition {
@@ -23,6 +27,11 @@ export interface ServiceDefinition {
 
 export interface Tool<A extends Adapter<unknown>> extends ServiceDefinition {
     adapter: A;
+}
+
+export interface McpTool extends Tool<McpAdapter> {
+    matchesCommand(command: readonly string[]): boolean;
+    matchesUrl(url: string): boolean;
 }
 
 type ConstraintReader = (
@@ -141,8 +150,23 @@ export const cliTools = {
 } satisfies Record<string, Tool<CliAdapter>>;
 
 export const mcpTools = {
-    github: defineTool(services.github, new GithubMcpAdapter()),
-} satisfies Record<string, Tool<McpAdapter>>;
+    github: {
+        ...defineTool(services.github, new GithubMcpAdapter()),
+        matchesCommand: matchesGithubMcpCommand,
+        matchesUrl: matchesGithubMcpUrl,
+    },
+} satisfies Record<string, McpTool>;
+
+export type McpToolName = keyof typeof mcpTools;
+export type McpAuditToolName = `${McpToolName}-mcp`;
+
+export function isMcpToolName(value: string | undefined): value is McpToolName {
+    return value !== undefined && Object.hasOwn(mcpTools, value);
+}
+
+export function isMcpAuditToolName(value: string): value is McpAuditToolName {
+    return Object.keys(mcpTools).some((name) => value === `${name}-mcp`);
+}
 
 export const tools = cliTools;
 

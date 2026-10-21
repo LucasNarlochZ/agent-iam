@@ -8,6 +8,12 @@ import {
     startApprovalChoiceChannel,
 } from "../approval-broker.js";
 import { approvalOptions } from "../approval.js";
+import {
+    proxyMcpCommand,
+    mcpProxyEnvironment,
+    checkMcpUrl,
+    warnUnproxiedMcp,
+} from "../mcp-configuration.js";
 
 const environmentKeys = [
     "PATH",
@@ -22,6 +28,44 @@ const environmentKeys = [
 export default Plugin.define({
     id: "agentiam",
     async setup(ctx) {
+        if (process.env.AGENTIAM_NODE && process.env.AGENTIAM_ENTRYPOINT) {
+            const mcpEnv = {
+                ...process.env,
+                AGENTIAM_MCP_POLICY_CWD: ctx.location.directory,
+            };
+            await ctx.mcp.transform((editor) => {
+                for (const [name, server] of editor.list()) {
+                    if (server.disabled) continue;
+                    if (server.type === "local") {
+                        const command = proxyMcpCommand(server.command, mcpEnv);
+                        if (!command) {
+                            warnUnproxiedMcp();
+                            continue;
+                        }
+                        editor.update(name, (draft) => {
+                            if (draft.type !== "local") return;
+                            draft.command = command;
+                            draft.environment = {
+                                ...draft.environment,
+                                ...mcpProxyEnvironment(mcpEnv),
+                            };
+                        });
+                    } else {
+                        try {
+                            checkMcpUrl(server.url);
+                            warnUnproxiedMcp();
+                        } catch {
+                            editor.update(name, (draft) => {
+                                draft.disabled = true;
+                            });
+                            process.stderr.write(
+                                "[agentiam] Disabled a registered HTTP MCP server: only stdio proxying is supported\n",
+                            );
+                        }
+                    }
+                }
+            });
+        }
         const nativeSocket = process.env.AGENTIAM_NATIVE_APPROVAL_SOCKET;
         if (!nativeSocket) return;
         const sockets = new AsyncLocalStorage<string>();

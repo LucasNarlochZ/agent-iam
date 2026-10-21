@@ -4,10 +4,10 @@ import { dirname } from "node:path";
 import { loadPolicy, resolvePolicyPath } from "./policy/schema.js";
 import { runShim } from "./shim.js";
 import { runWithShims } from "./runner.js";
-import { isToolName } from "./tools.js";
+import { isToolName, isMcpToolName } from "./tools.js";
 import { serveMcpApprovals } from "./mcp-approval.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { serveGithubMcp } from "./mcp-github.js";
+import { serveMcpProxy } from "./mcp-proxy.js";
 
 interface Output {
     stdout: NodeJS.WritableStream;
@@ -24,7 +24,7 @@ export interface CliDependencies {
 }
 
 function usage(): string {
-    return "Usage: agentiam init\n       agentiam inspect\n       agentiam run -- <command> [args...]\n       agentiam mcp github -- <command> [args...]";
+    return "Usage: agentiam init\n       agentiam inspect\n       agentiam run -- <command> [args...]\n       agentiam mcp <registered-tool> -- <command> [args...]";
 }
 
 export async function main(
@@ -95,9 +95,10 @@ export async function main(
         }
     }
     if (command === "mcp") {
-        if (args[1] !== "github" || args[2] !== "--" || !args[3]) {
+        const tool = args[1];
+        if (!isMcpToolName(tool) || args[2] !== "--" || !args[3]) {
             output.stderr.write(
-                "agentiam mcp requires github -- <command> [args...]\n",
+                "agentiam mcp requires <registered-tool> -- <command> [args...]\n",
             );
             return 1;
         }
@@ -106,14 +107,21 @@ export async function main(
                 (entry): entry is [string, string] => entry[1] !== undefined,
             ),
         );
-        await serveGithubMcp(
+        await serveMcpProxy(
+            tool,
             new StdioClientTransport({
                 command: args[3],
                 args: args.slice(4),
                 env: childEnv,
                 stderr: "ignore",
             }),
-            { env },
+            {
+                env: {
+                    ...env,
+                    HOME: env.AGENTIAM_MCP_POLICY_HOME ?? env.HOME,
+                },
+                cwd: env.AGENTIAM_MCP_POLICY_CWD,
+            },
         );
         return 0;
     }

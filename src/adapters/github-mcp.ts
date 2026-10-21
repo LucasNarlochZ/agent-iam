@@ -1,5 +1,28 @@
 import { capability, type CanonicalCapability } from "../capability.js";
 import type { McpAdapter, McpToolCall } from "./interfaces.js";
+import { basename } from "node:path";
+
+export function matchesGithubMcpCommand(command: readonly string[]): boolean {
+    const executable = basename(command[0] ?? "");
+    if (executable === "github-mcp-server") return true;
+    return (
+        (executable === "docker" || executable === "podman") &&
+        command.includes("run") &&
+        command.some((argument) =>
+            /^ghcr\.io\/github\/github-mcp-server(?::[^\s]+|@sha256:[a-f0-9]+)?$/.test(
+                argument,
+            ),
+        )
+    );
+}
+
+export function matchesGithubMcpUrl(value: string): boolean {
+    try {
+        return new URL(value).hostname === "api.githubcopilot.com";
+    } catch {
+        return false;
+    }
+}
 
 const actions: Record<string, string> = {
     get_file_contents: "file.read",

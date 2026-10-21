@@ -184,7 +184,27 @@ Example output from an intercepted session:
 
 ## GitHub MCP Proxy
 
-Configure your MCP client to launch Agent IAM instead of launching the official GitHub MCP server directly:
+Keep your existing MCP server definitions and launch your coding agent through Agent IAM:
+
+```bash
+agentiam run -- codex
+agentiam run -- opencode
+agentiam run -- claude
+```
+
+Agent IAM automatically replaces recognized stdio server commands with its proxy for that run. It recognizes the official `github-mcp-server` executable, including absolute paths, and Docker/Podman commands using the `ghcr.io/github/github-mcp-server` image. Server aliases do not need to be named `github`. Arbitrary shell scripts, alternative implementations, and remote executors are not automatically recognized.
+
+The original configuration files are not edited. Generated overrides and private files belong to the wrapped process and are removed when it exits. Server environment settings and working directories remain in effect. Policy discovery uses the agent's effective project directory, including Codex's `--cd` and OpenCode's active location, rather than a server's custom working directory.
+
+- **Codex:** reads effective server definitions through `codex mcp list --json`, then overrides recognized commands and arguments. Existing server options remain in place. Discovery honors `--config` overrides and resolves `--cd`/`-C` for discovery. Profiles, worktrees, remote sessions, and plugin-provided servers are not supported by automatic discovery. Discovery failure prevents launch rather than falling back to unprotected execution.
+- **OpenCode V2:** the temporary plugin transforms the effective MCP registry, including servers from global, project, and inline configuration. OpenCode V1 does not support automatic wrapping and prints a warning.
+- **Claude Code:** reads user/local JSON definitions and already approved, trusted project `.mcp.json` entries, then writes a private `--mcp-config` overlay. Disabled entries remain disabled; a recognized project server without prior trust and approval prevents launch. Explicit MCP JSON/files are merged into the overlay; use one `--mcp-config=VALUE` option per input. Environment references remain references in generated commands. Native MCP allow/deny lists and detected managed configuration prevent automatic wrapping because replacing a command changes its policy identity. Server-managed/MDM environments, custom `--settings`/`--setting-sources`, worktrees, plugins, and connectors are not supported by this discovery path; do not use it to enforce enterprise policies.
+
+Unrecognized servers are left unchanged with a warning and are outside Agent IAM enforcement. Recognized hosted GitHub HTTP servers cannot be proxied yet: Codex/Claude preparation rejects them, and OpenCode disables them for the wrapped process with a warning. Direct connections, managed configuration, other plugins, and later configuration changes can lie outside this interception boundary; this is not a universal MCP sandbox.
+
+### Manual Proxy Configuration
+
+For other clients, or commands that cannot be discovered automatically, configure the MCP client to launch Agent IAM explicitly:
 
 ```json
 {

@@ -2,7 +2,7 @@ import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import type { CanonicalCapability } from "./capability.js";
-import type { ToolName } from "./tools.js";
+import type { ToolName, McpAuditToolName } from "./tools.js";
 
 export type Decision = "ALLOW" | "DENY";
 
@@ -10,7 +10,7 @@ export interface AuditRecord {
     timestamp: string;
     capability: CanonicalCapability;
     decision: Decision;
-    tool: ToolName | "github-mcp";
+    tool: ToolName | McpAuditToolName;
     arguments: string[];
     command: string;
     policyPath: string;

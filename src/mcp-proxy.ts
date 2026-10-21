@@ -11,27 +11,30 @@ import { requestAuditWrite } from "./audit-broker.js";
 import { capability } from "./capability.js";
 import { evaluatePolicies } from "./policy/engine.js";
 import { loadPolicy, resolvePolicyPath } from "./policy/schema.js";
-import { mcpTools } from "./tools.js";
+import { mcpTools, type McpToolName, type McpAuditToolName } from "./tools.js";
 
-export interface GithubMcpOptions {
+export interface McpProxyOptions {
     env?: NodeJS.ProcessEnv;
     cwd?: string;
 }
 
-type GithubMcpUpstream = Pick<Client, "listTools" | "callTool">;
+type McpUpstream = Pick<Client, "listTools" | "callTool">;
 
 function failure(text: string) {
     return { isError: true, content: [{ type: "text" as const, text }] };
 }
 
-export function createGithubMcpProxy(
-    upstream: GithubMcpUpstream,
-    options: GithubMcpOptions = {},
+export function createMcpProxy(
+    toolName: McpToolName,
+    upstream: McpUpstream,
+    options: McpProxyOptions = {},
 ): Server {
     const env = options.env ?? process.env;
-    const { adapter } = mcpTools.github;
+    const tool = mcpTools[toolName];
+    const { adapter } = tool;
+    const auditTool: McpAuditToolName = `${toolName}-mcp`;
     const server = new Server(
-        { name: "agentiam-github", version: "0.3.1" },
+        { name: `agentiam-${toolName}`, version: "0.3.1" },
         { capabilities: { tools: {} } },
     );
     server.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
@@ -46,13 +49,13 @@ export function createGithubMcpProxy(
                 ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
             };
         } catch {
-            throw new Error("GitHub MCP tool discovery failed");
+            throw new Error("MCP tool discovery failed");
         }
     });
     server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
         const normalized = await adapter.normalize(request.params);
         let decision: "ALLOW" | "DENY" = "DENY";
-        let reason = "unsupported GitHub MCP tool or arguments";
+        let reason = "unsupported MCP tool or arguments";
         if (normalized) {
             try {
                 const loaded = await loadPolicy(env, options.cwd);
@@ -72,11 +75,11 @@ export function createGithubMcpProxy(
             : "unsupported";
         const record: AuditRecord = {
             timestamp: new Date().toISOString(),
-            capability: normalized ?? capability("github", "unknown"),
+            capability: normalized ?? capability(tool.service, "unknown"),
             decision,
-            tool: "github-mcp",
+            tool: auditTool,
             arguments: [safeName],
-            command: `github-mcp ${safeName}`,
+            command: `${auditTool} ${safeName}`,
             policyPath: resolvePolicyPath(env),
             reason,
         };
@@ -102,21 +105,23 @@ export function createGithubMcpProxy(
                 { signal: extra.signal },
             );
         } catch {
-            return failure(
-                "GitHub MCP upstream call failed; no retry was made",
-            );
+            return failure("MCP upstream call failed; no retry was made");
         }
     });
     return server;
 }
 
-export async function serveGithubMcp(
+export async function serveMcpProxy(
+    toolName: McpToolName,
     upstreamTransport: Transport,
-    options: GithubMcpOptions = {},
+    options: McpProxyOptions = {},
     downstreamTransport: Transport = new StdioServerTransport(),
 ): Promise<void> {
-    const upstream = new Client({ name: "agentiam-github", version: "0.3.1" });
-    const server = createGithubMcpProxy(upstream, options);
+    const upstream = new Client({
+        name: `agentiam-${toolName}`,
+        version: "0.3.1",
+    });
+    const server = createMcpProxy(toolName, upstream, options);
     let stop!: () => void;
     const stopped = new Promise<void>((resolve) => {
         stop = resolve;
@@ -135,7 +140,7 @@ export async function serveGithubMcp(
         await Promise.race([server.connect(downstreamTransport), stopped]);
         await stopped;
     } catch {
-        throw new Error("GitHub MCP proxy connection failed");
+        throw new Error("MCP proxy connection failed");
     } finally {
         process.stdin.off("end", stop);
         process.off("SIGINT", stop);

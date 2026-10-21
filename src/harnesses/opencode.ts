@@ -8,6 +8,9 @@ export const opencodeHarnessAdapter: HarnessAdapter = {
     async prepare(env, directory, _command, version) {
         if (version?.startsWith("1.")) {
             env.AGENTIAM_OPENCODE_V1 = "1";
+            process.stderr.write(
+                "[agentiam] Automatic MCP proxying requires OpenCode V2; V1 MCP servers are outside Agent IAM enforcement\n",
+            );
             return;
         }
         const entrypoint = env.AGENTIAM_ENTRYPOINT;
