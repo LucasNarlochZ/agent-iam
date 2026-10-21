@@ -1,4 +1,5 @@
 import { capability, type CanonicalCapability } from "../capability.js";
+import type { McpAdapter, McpToolCall } from "./interfaces.js";
 
 const actions: Record<string, string> = {
     get_file_contents: "file.read",
@@ -26,58 +27,60 @@ const readMethods: Record<string, string> = {
 
 const issueReadMethods = new Set(["get", "get_comments", "get_labels"]);
 
-export function isGithubMcpTool(name: string): boolean {
-    return (
-        Object.hasOwn(actions, name) ||
-        name === "pull_request_read" ||
-        name === "issue_read" ||
-        name === "issue_write"
-    );
-}
+export class GithubMcpAdapter implements McpAdapter {
+    supportsTool(name: string): boolean {
+        return (
+            Object.hasOwn(actions, name) ||
+            name === "pull_request_read" ||
+            name === "issue_read" ||
+            name === "issue_write"
+        );
+    }
 
-export function normalizeGithubMcpCall(
-    name: string,
-    args: Record<string, unknown> = {},
-): CanonicalCapability<"github"> | undefined {
-    if (!isGithubMcpTool(name)) return undefined;
-    const { owner, repo, method } = args;
-    if (
-        typeof owner !== "string" ||
-        !/^[a-zA-Z0-9-]+$/.test(owner) ||
-        typeof repo !== "string" ||
-        !/^[a-zA-Z0-9_.-]+$/.test(repo) ||
-        repo === "." ||
-        repo === ".." ||
-        args.parent_owner !== undefined ||
-        args.parent_repo !== undefined
-    ) {
-        return undefined;
+    normalize({
+        name,
+        arguments: args = {},
+    }: McpToolCall): CanonicalCapability<"github"> | undefined {
+        if (!this.supportsTool(name)) return undefined;
+        const { owner, repo, method } = args;
+        if (
+            typeof owner !== "string" ||
+            !/^[a-zA-Z0-9-]+$/.test(owner) ||
+            typeof repo !== "string" ||
+            !/^[a-zA-Z0-9_.-]+$/.test(repo) ||
+            repo === "." ||
+            repo === ".." ||
+            args.parent_owner !== undefined ||
+            args.parent_repo !== undefined
+        ) {
+            return undefined;
+        }
+        let action = actions[name];
+        if (name === "pull_request_read") {
+            action =
+                typeof method === "string" && Object.hasOwn(readMethods, method)
+                    ? readMethods[method]
+                    : undefined;
+        }
+        if (name === "issue_read") {
+            action =
+                typeof method === "string" && issueReadMethods.has(method)
+                    ? "issue.view"
+                    : undefined;
+        }
+        if (name === "issue_write") {
+            action =
+                method === "create"
+                    ? "issue.create"
+                    : method === "update"
+                      ? "issue.edit"
+                      : undefined;
+        }
+        if (!action) return undefined;
+        const [group, operation] = action.split(".");
+        return {
+            ...capability("github", operation!, group),
+            constraints: { repository: `${owner}/${repo}`.toLowerCase() },
+        };
     }
-    let action = actions[name];
-    if (name === "pull_request_read") {
-        action =
-            typeof method === "string" && Object.hasOwn(readMethods, method)
-                ? readMethods[method]
-                : undefined;
-    }
-    if (name === "issue_read") {
-        action =
-            typeof method === "string" && issueReadMethods.has(method)
-                ? "issue.view"
-                : undefined;
-    }
-    if (name === "issue_write") {
-        action =
-            method === "create"
-                ? "issue.create"
-                : method === "update"
-                  ? "issue.edit"
-                  : undefined;
-    }
-    if (!action) return undefined;
-    const [group, operation] = action.split(".");
-    return {
-        ...capability("github", operation!, group),
-        constraints: { repository: `${owner}/${repo}`.toLowerCase() },
-    };
 }
