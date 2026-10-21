@@ -1,6 +1,6 @@
 import { capability, type CanonicalCapability } from "../capability.js";
 import { captureOutput, resolveExecutable } from "../process.js";
-import { Adapter } from "./interfaces.js";
+import type { CliAdapter } from "./interfaces.js";
 
 const valueOptions = new Set(["--repo", "-R", "--hostname"]);
 
@@ -55,7 +55,7 @@ function pullRequestNumber(positional: string[]): number | undefined {
     return value && /^\d+$/.test(value) ? Number(value) : undefined;
 }
 
-export class GithubCliAdapter implements Adapter {
+export class GithubCliAdapter implements CliAdapter {
     async normalize(
         args: string[],
         env: NodeJS.ProcessEnv = process.env,

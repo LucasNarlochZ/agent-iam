@@ -2,7 +2,7 @@ import type { CanonicalCapability } from "./capability.js";
 import { AwsCliAdapter } from "./adapters/aws.js";
 import { GithubCliAdapter } from "./adapters/gh.js";
 import { GitCliAdapter } from "./adapters/git.js";
-import type { Adapter } from "./adapters/interfaces.js";
+import type { CliAdapter } from "./adapters/interfaces.js";
 
 export interface CapabilityDefinition {
     constraints: readonly string[];
@@ -16,7 +16,7 @@ export interface PolicyConstraintValue {
 
 interface ToolDefinition {
     service: string;
-    adapter: Adapter;
+    adapter: CliAdapter;
     capabilityDefinition(canonical: string): CapabilityDefinition | undefined;
     policyConstraints(capability: CanonicalCapability): PolicyConstraintValue[];
 }
@@ -27,7 +27,7 @@ type ConstraintReader = (
 
 function staticTool(
     service: string,
-    adapter: Adapter,
+    adapter: CliAdapter,
     actions: Record<string, readonly string[]>,
     readers: Record<string, ConstraintReader>,
 ): ToolDefinition {

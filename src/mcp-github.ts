@@ -6,10 +6,8 @@ import {
     CallToolRequestSchema,
     ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import {
-    isGithubMcpTool,
-    normalizeGithubMcpCall,
-} from "./adapters/github-mcp.js";
+import { GithubMcpAdapter } from "./adapters/github-mcp.js";
+import type { McpAdapter } from "./adapters/interfaces.js";
 import { appendAuditRecord, type AuditRecord } from "./audit.js";
 import { requestAuditWrite } from "./audit-broker.js";
 import { capability } from "./capability.js";
@@ -32,6 +30,7 @@ export function createGithubMcpProxy(
     options: GithubMcpOptions = {},
 ): Server {
     const env = options.env ?? process.env;
+    const adapter: McpAdapter = new GithubMcpAdapter();
     const server = new Server(
         { name: "agentiam-github", version: "0.3.1" },
         { capabilities: { tools: {} } },
@@ -43,7 +42,7 @@ export function createGithubMcpProxy(
             });
             return {
                 tools: result.tools.filter((tool) =>
-                    isGithubMcpTool(tool.name),
+                    adapter.supportsTool(tool.name),
                 ),
                 ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
             };
@@ -52,10 +51,7 @@ export function createGithubMcpProxy(
         }
     });
     server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
-        const normalized = normalizeGithubMcpCall(
-            request.params.name,
-            request.params.arguments,
-        );
+        const normalized = await adapter.normalize(request.params);
         let decision: "ALLOW" | "DENY" = "DENY";
         let reason = "unsupported GitHub MCP tool or arguments";
         if (normalized) {
@@ -72,7 +68,7 @@ export function createGithubMcpProxy(
                 reason = "policy evaluation failed";
             }
         }
-        const safeName = isGithubMcpTool(request.params.name)
+        const safeName = adapter.supportsTool(request.params.name)
             ? request.params.name
             : "unsupported";
         const record: AuditRecord = {
