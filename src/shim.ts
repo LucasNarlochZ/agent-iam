@@ -13,7 +13,7 @@ import {
     type ApprovalChoice,
 } from "./approval.js";
 import type { CanonicalCapability } from "./capability.js";
-import { tools, type ToolName } from "./tools.js";
+import { cliTools, type ToolName } from "./tools.js";
 import {
     requestBrokerApproval,
     requestFileApproval,
@@ -39,7 +39,7 @@ function write(
 }
 
 export async function runShim(options: ShimOptions): Promise<number> {
-    const capability = await tools[options.tool].adapter.normalize(
+    const capability = await cliTools[options.tool].adapter.normalize(
         options.args,
         options.env,
     );

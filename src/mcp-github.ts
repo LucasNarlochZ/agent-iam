@@ -6,13 +6,12 @@ import {
     CallToolRequestSchema,
     ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { GithubMcpAdapter } from "./adapters/github-mcp.js";
-import type { McpAdapter } from "./adapters/interfaces.js";
 import { appendAuditRecord, type AuditRecord } from "./audit.js";
 import { requestAuditWrite } from "./audit-broker.js";
 import { capability } from "./capability.js";
 import { evaluatePolicies } from "./policy/engine.js";
 import { loadPolicy, resolvePolicyPath } from "./policy/schema.js";
+import { mcpTools } from "./tools.js";
 
 export interface GithubMcpOptions {
     env?: NodeJS.ProcessEnv;
@@ -30,7 +29,7 @@ export function createGithubMcpProxy(
     options: GithubMcpOptions = {},
 ): Server {
     const env = options.env ?? process.env;
-    const adapter: McpAdapter = new GithubMcpAdapter();
+    const { adapter } = mcpTools.github;
     const server = new Server(
         { name: "agentiam-github", version: "0.3.1" },
         { capabilities: { tools: {} } },

@@ -2,7 +2,7 @@ import pl from "tau-prolog";
 import type { CanonicalCapability } from "../capability.js";
 import type { CapabilityKey, Policy, PolicyRules } from "./schema.js";
 import { compilePolicy, escapePrologAtom } from "./compiler.js";
-import { toolForCapability } from "../tools.js";
+import { serviceForCapability } from "../tools.js";
 
 export interface PolicyDecision {
     decision: "ALLOW" | "DENY";
@@ -15,7 +15,7 @@ type Session = ReturnType<typeof pl.create>;
 
 function constraintTerms(capability: CanonicalCapability): string {
     const constraints = (
-        toolForCapability(capability)?.policyConstraints(capability) ?? []
+        serviceForCapability(capability)?.policyConstraints(capability) ?? []
     ).flatMap(({ name, values }) =>
         values.map(
             (value) => `constraint(${name}, '${escapePrologAtom(value)}')`,
