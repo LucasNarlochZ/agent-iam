@@ -1,6 +1,6 @@
 # Agent IAM
 
-Agent IAM provides fail-closed, capability-based policy enforcement for AI-agent CLI actions.
+Agent IAM provides fail-closed, capability-based policy enforcement for AI-agent CLI actions and supported GitHub MCP tools.
 
 The central idea is simple: interfaces change, capabilities do not. Whether an agent eventually uses a CLI, MCP, or HTTP adapter, an external action can be normalized into a canonical capability, evaluated by one policy engine, and written to one audit log.
 
@@ -182,6 +182,64 @@ Example output from an intercepted session:
 [agentiam] DENY github.pr.merge
 ```
 
+## GitHub MCP Proxy
+
+Configure your MCP client to launch Agent IAM instead of launching the official GitHub MCP server directly:
+
+```json
+{
+    "mcpServers": {
+        "github": {
+            "command": "agentiam",
+            "args": ["mcp", "github", "--", "github-mcp-server", "stdio"]
+        }
+    }
+}
+```
+
+Install the official `github-mcp-server` separately and supply its credentials through your MCP client's environment or secret configuration. The upstream command inherits the proxy's environment. Agent IAM launches it directly without a shell. For Docker-based installations, use `docker` as the upstream command and pass the appropriate `run --rm -i` arguments after `--`.
+
+The client and upstream both use stdio. Policy enforcement is separate from transport construction, allowing a future HTTP upstream without duplicating authorization logic. HTTP transport is not exposed by this CLI yet.
+
+Only these official GitHub MCP tools are exposed:
+
+| Tool | Capability |
+| --- | --- |
+| `get_file_contents` | `github.file.read` |
+| `create_or_update_file`, `push_files` | `github.file.write` |
+| `list_issues` | `github.issue.list` |
+| `issue_read` | `github.issue.view` |
+| `issue_write` (`create` / `update`) | `github.issue.create` / `github.issue.edit` |
+| `add_issue_comment` | `github.issue.comment` |
+| `list_pull_requests` | `github.pr.list` |
+| `create_pull_request` | `github.pr.create` |
+| `update_pull_request` | `github.pr.edit` |
+| `merge_pull_request` | `github.pr.merge` |
+| `pull_request_read` (`get_diff`, `get_status`, `get_check_runs`) | `github.pr.diff`, `github.pr.status`, `github.pr.checks` |
+| `pull_request_read` (other supported reads) | `github.pr.view` |
+
+Supported `issue_read` methods are `get`, `get_comments`, and `get_labels`. Dedicated parent/sub-issue reads are denied because they can retrieve content from another repository. Other supported `pull_request_read` methods are `get`, `get_files`, `get_commits`, `get_review_comments`, `get_reviews`, and `get_comments`. Unknown methods are denied, including future methods added by the upstream server. Explicit `parent_owner` or `parent_repo` arguments are not supported; cross-repository parent issue operations are denied.
+
+Every supported call requires `owner` and `repo`. These become the same repository constraint used by GitHub CLI policies, so existing PR rules apply to both interfaces. GitHub repository constraints are compared case-insensitively in both interfaces:
+
+```yaml
+allow:
+  github.file.read:
+    repos: [my-org/my-repo]
+  github.issue.view:
+    repos: [my-org/my-repo]
+  github.pr.view:
+    repos: [my-org/my-repo]
+deny:
+  github.pr.merge: true
+```
+
+Policies are reloaded for every call. Directory restrictions use the proxy's working directory, not a path supplied by the caller. Calls without a matching allow, unsupported tools or arguments, invalid policies, and audit failures are denied without interactive approval. Denials return an MCP tool error and never invoke the upstream tool. Tool discovery is not filtered by current policy; clients can discover supported tools before rules change. Resources, prompts, and upstream-initiated requests are not proxied.
+
+Authorization attempts use the existing JSONL audit log with `tool: "github-mcp"`. To avoid recording credentials or private content, only the supported tool name and normalized repository capability are recorded, not raw MCP arguments, upstream command arguments, or tool results. Upstream stderr is suppressed and transport exceptions return generic errors. Successful authorization is audited before forwarding; it does not prove that GitHub completed the operation. Failed upstream calls are not retried, since a failed response may follow a completed mutation. The upstream process is closed when the client disconnects or the proxy receives SIGINT/SIGTERM.
+
+Use a trusted official upstream server. The proxy is not a sandbox: process startup is not policy-gated, and direct access to GitHub or another MCP server bypasses this boundary.
+
 ## Audit Log
 
 Every authorization attempt is appended to `~/.agentiam/audit.jsonl`. If the audit entry cannot be written, the command is denied and the real binary is not executed.
@@ -218,7 +276,7 @@ Each line is a JSON object containing the timestamp, structured capability, deci
 - Real binaries are resolved only from the original `PATH`, preventing wrapper recursion.
 - Arguments are passed as an array and are not reconstructed through a shell.
 
-Agent IAM is an authorization shim, not a complete sandbox. An agent can still perform actions not covered by `git`, `gh`, or `aws`, and a process can bypass the shim by deliberately changing its environment or invoking another tool. MCP and HTTP adapters, quotas, skill scopes, general policy editing, a central control plane, physical sandboxing, and native Windows support are outside this MVP.
+Agent IAM is an authorization shim, not a complete sandbox. An agent can still perform actions outside the CLI shims and configured GitHub MCP proxy, and a process can bypass interception by deliberately changing its environment or invoking another tool. Other MCP adapters, HTTP transport and adapters, quotas, skill scopes, general policy editing, a central control plane, physical sandboxing, and native Windows support are outside this MVP.
 
 ## Development
 

@@ -6,6 +6,8 @@ import { runShim } from "./shim.js";
 import { runWithShims } from "./runner.js";
 import { isToolName } from "./tools.js";
 import { serveMcpApprovals } from "./mcp-approval.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { serveGithubMcp } from "./mcp-github.js";
 
 interface Output {
     stdout: NodeJS.WritableStream;
@@ -22,7 +24,7 @@ export interface CliDependencies {
 }
 
 function usage(): string {
-    return "Usage: agentiam init\n       agentiam inspect\n       agentiam run -- <command> [args...]";
+    return "Usage: agentiam init\n       agentiam inspect\n       agentiam run -- <command> [args...]\n       agentiam mcp github -- <command> [args...]";
 }
 
 export async function main(
@@ -91,6 +93,29 @@ export async function main(
             );
             return 1;
         }
+    }
+    if (command === "mcp") {
+        if (args[1] !== "github" || args[2] !== "--" || !args[3]) {
+            output.stderr.write(
+                "agentiam mcp requires github -- <command> [args...]\n",
+            );
+            return 1;
+        }
+        const childEnv = Object.fromEntries(
+            Object.entries(env).filter(
+                (entry): entry is [string, string] => entry[1] !== undefined,
+            ),
+        );
+        await serveGithubMcp(
+            new StdioClientTransport({
+                command: args[3],
+                args: args.slice(4),
+                env: childEnv,
+                stderr: "ignore",
+            }),
+            { env },
+        );
+        return 0;
     }
     if (command === "run") {
         const separator = args.indexOf("--");

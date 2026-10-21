@@ -10,7 +10,7 @@ export interface AuditRecord {
     timestamp: string;
     capability: CanonicalCapability;
     decision: Decision;
-    tool: ToolName;
+    tool: ToolName | "github-mcp";
     arguments: string[];
     command: string;
     policyPath: string;
