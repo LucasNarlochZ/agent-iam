@@ -1,5 +1,32 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Add `agentiam --version` to print the installed package version
+- Add policy and approval coverage for common Git commands, including `add`, `checkout`, `fetch`, `pull`, `merge`, `rebase`, `reset`, `restore`, `stash`, and `worktree`
+- Add GitHub CLI capability coverage for issues, pull requests, repositories, Actions runs and workflows, releases, authentication, search, and gists without automatically granting permission
+- Add `agentiam inspect logs` with readable decision explanations, `--head [N]`, `--tail [N]`, and JSONL output through `--json`; default to the latest 20 valid records and retain support for existing audit records
+- Add audit reason codes for matching allow and deny rules, missing allow rules, constraint mismatches, unsupported capabilities, policy errors, and approval outcomes, including the decisive policy path and scope
+- Add correlated authorization and approval events using request identifiers, including saved policy changes, skipped approvals, broker failures, and one-time allows
+- Add `agentiam mcp github -- <command> [args...]` to enforce shared GitHub capability policies for supported official GitHub MCP tools over stdio, with repository constraints, per-call policy reloads, and privacy-limited audit records
+- Add automatic GitHub MCP proxy configuration for Codex, OpenCode V2, and Claude Code using temporary process-scoped overrides, preserving original configuration files and rejecting unsupported discovery configurations rather than silently bypassing enforcement
+
+### Changed
+
+- **Breaking:** Replace `agentiam inspect` with `agentiam inspect policy`; bare `inspect` now displays subcommand usage, and policy inspection includes configured constraints
+- Include authorization explanations in CLI allow and deny messages, with expected and actual context for constraint mismatches
+- Compare GitHub repository constraints case-insensitively across CLI and MCP policies
+- Reorganize the README around installation and quick start, moving architecture, policy rules, command coverage, integrations, MCP setup, observability, and development details into focused guides under `docs/`
+
+### Fixed
+
+- Record an `ALLOW` approval event before executing a one-time-approved command instead of leaving only its initial denial in the audit trail
+- Distinguish unsupported commands from missing permissions so denied actions explain why policy approval is unavailable
+- Handle closed stdin during MCP upstream initialization and clean up the upstream process when the client disconnects
+- Correct the package repository URL to point to `LucasNarlochZ/agent-iam`
+
 ## [0.3.1](https://github.com/LucasNarlochZ/agent-iam/compare/core-v0.3.0...core-v0.3.1) (2026-10-20)
 
 
