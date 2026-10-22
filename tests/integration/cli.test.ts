@@ -8,6 +8,22 @@ import { describe, expect, it } from "vitest";
 const exec = promisify(execFile);
 
 describe("built CLI", () => {
+    it("prints the package version from outside the project directory", async () => {
+        const home = await mkdtemp(join(tmpdir(), "agentiam-cli-home-"));
+        const { version } = JSON.parse(
+            await readFile(resolve("package.json"), "utf8"),
+        );
+
+        const result = await exec(
+            process.execPath,
+            [resolve("dist/index.js"), "--version"],
+            { cwd: home, env: { ...process.env, HOME: home } },
+        );
+
+        expect(result.stdout).toBe(`${version}\n`);
+        expect(result.stderr).toBe("");
+    });
+
     it("initializes the user policy from the example", async () => {
         const home = await mkdtemp(join(tmpdir(), "agentiam-cli-home-"));
         const cli = resolve("dist/index.js");
@@ -50,7 +66,7 @@ describe("built CLI", () => {
         const execOptions = { env, cwd: home };
         const inspected = await exec(
             process.execPath,
-            [cli, "inspect"],
+            [cli, "inspect", "policy"],
             execOptions,
         );
         expect(inspected.stdout).toContain("Default: DENY");
@@ -69,5 +85,23 @@ describe("built CLI", () => {
                 execOptions,
             ),
         ).rejects.toMatchObject({ code: 126 });
+        const logs = await exec(
+            process.execPath,
+            [cli, "inspect", "logs", "--tail", "1", "--json"],
+            execOptions,
+        );
+        expect(JSON.parse(logs.stdout)).toMatchObject({
+            decision: "DENY",
+            reasonCode: "deny_rule",
+            policyScope: "global",
+            capability: { canonical: "github.pr.merge" },
+        });
+        const first = await exec(
+            process.execPath,
+            [cli, "inspect", "logs", "--head", "1"],
+            execOptions,
+        );
+        expect(first.stdout).toContain("ALLOW git.commit");
+        expect(first.stdout).toContain("matched global allow rule");
     });
 });

@@ -2,11 +2,14 @@ import pl from "tau-prolog";
 import type { CanonicalCapability } from "../capability.js";
 import type { CapabilityKey, Policy, PolicyRules } from "./schema.js";
 import { compilePolicy, escapePrologAtom } from "./compiler.js";
-import { toolForCapability } from "../tools.js";
+import { capabilityDefinitionFor, serviceForCapability } from "../tools.js";
 
 export interface PolicyDecision {
     decision: "ALLOW" | "DENY";
     reason: string;
+    reasonCode?: string;
+    policyScope?: "global" | "directory";
+    policyPath?: string;
 }
 
 export class PolicyEngineError extends Error {}
@@ -15,7 +18,7 @@ type Session = ReturnType<typeof pl.create>;
 
 function constraintTerms(capability: CanonicalCapability): string {
     const constraints = (
-        toolForCapability(capability)?.policyConstraints(capability) ?? []
+        serviceForCapability(capability)?.policyConstraints(capability) ?? []
     ).flatMap(({ name, values }) =>
         values.map(
             (value) => `constraint(${name}, '${escapePrologAtom(value)}')`,
@@ -113,12 +116,53 @@ export async function evaluatePolicies(
     globalPolicy: Policy,
     directoryPolicies: Policy[],
     capability: CanonicalCapability,
+    paths?: { global: string; directories: string[] },
 ): Promise<PolicyDecision> {
-    const globalDecision = await evaluatePolicy(globalPolicy, capability);
+    const explain = (
+        decision: PolicyDecision,
+        policy: Policy,
+        scope: "global" | "directory",
+        path?: string,
+    ): PolicyDecision => {
+        const key = capability.canonical;
+        let reasonCode: string;
+        let reason: string;
+        if (!capabilityDefinitionFor(key)) {
+            reasonCode = "unsupported_capability";
+            reason = `unsupported capability ${key}; no policy rule can authorize it`;
+        } else if (
+            decision.reason === "matched deny rule" ||
+            decision.decision === "ALLOW"
+        ) {
+            const effect = decision.decision === "ALLOW" ? "allow" : "deny";
+            reasonCode = `${effect}_rule`;
+            const rule = policy[effect][key];
+            reason = `matched ${scope} ${effect} rule for ${key}${rule !== true ? ` with constraints ${JSON.stringify(rule)}` : ""}`;
+        } else if (policy.allow[key] !== undefined) {
+            reasonCode = "constraint_mismatch";
+            reason = `${scope} allow rule constraints did not match for ${key}; expected ${JSON.stringify(policy.allow[key])}; actual ${JSON.stringify(capability.constraints ?? {})}`;
+        } else {
+            reasonCode = "no_allow_rule";
+            reason = `no allow rule for ${key} in ${scope} policy (default deny)`;
+        }
+        return {
+            decision: decision.decision,
+            reason,
+            reasonCode,
+            policyScope: scope,
+            ...(path ? { policyPath: path } : {}),
+        };
+    };
+    const globalDecision = explain(
+        await evaluatePolicy(globalPolicy, capability),
+        globalPolicy,
+        "global",
+        paths?.global,
+    );
     if (globalDecision.decision === "DENY") return globalDecision;
 
     const key = capability.canonical as CapabilityKey;
-    for (const policy of directoryPolicies) {
+    for (const [index, policy] of directoryPolicies.entries()) {
         if (policy.deny[key] !== undefined) {
             const decision = await evaluatePolicy(
                 {
@@ -127,14 +171,26 @@ export async function evaluatePolicies(
                 },
                 capability,
             );
-            if (decision.decision === "DENY") return decision;
+            if (decision.decision === "DENY")
+                return explain(
+                    decision,
+                    policy,
+                    "directory",
+                    paths?.directories[index],
+                );
         }
         if (policy.allow[key] !== undefined) {
             const decision = await evaluatePolicy(
                 { allow: policy.allow, deny: {} },
                 capability,
             );
-            if (decision.decision === "DENY") return decision;
+            if (decision.decision === "DENY")
+                return explain(
+                    decision,
+                    policy,
+                    "directory",
+                    paths?.directories[index],
+                );
         }
     }
     return globalDecision;

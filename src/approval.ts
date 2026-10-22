@@ -3,7 +3,7 @@ import { emitKeypressEvents } from "node:readline";
 import { stringify } from "yaml";
 import type { CanonicalCapability } from "./capability.js";
 import type { CapabilityKey, Policy, PolicyRule } from "./policy/schema.js";
-import { toolForCapability } from "./tools.js";
+import { serviceForCapability } from "./tools.js";
 
 export type ApprovalChoice =
     "allow" | "allow-context" | "allow-once" | "deny" | "skip";
@@ -80,7 +80,7 @@ export interface ApprovalPromptOptions {
 
 function contextLabel(capability: CanonicalCapability): string | undefined {
     const labels =
-        toolForCapability(capability)
+        serviceForCapability(capability)
             ?.policyConstraints(capability)
             .map(({ label }) => label) ?? [];
     return labels.length > 0 ? labels.join("; ") : undefined;
@@ -125,7 +125,7 @@ function contextualRule(
     capability: CanonicalCapability,
 ): PolicyRule | undefined {
     const constraints =
-        toolForCapability(capability)?.policyConstraints(capability) ?? [];
+        serviceForCapability(capability)?.policyConstraints(capability) ?? [];
     return constraints.length > 0
         ? Object.fromEntries(
               constraints.map(({ name, values }) => [name, values]),

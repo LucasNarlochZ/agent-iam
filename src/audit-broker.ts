@@ -1,36 +1,16 @@
-import { appendAuditRecord, type AuditRecord } from "./audit.js";
-import { toolNames } from "./tools.js";
+import {
+    appendAuditRecord,
+    parseAuditRecord,
+    type AuditRecord,
+} from "./audit.js";
 import { requestFileBroker, startFileBroker } from "./file-broker.js";
-
-function parseRecord(input: string): AuditRecord {
-    const record = JSON.parse(input) as AuditRecord;
-    if (
-        !record ||
-        typeof record !== "object" ||
-        typeof record.timestamp !== "string" ||
-        !record.capability ||
-        typeof record.capability.service !== "string" ||
-        typeof record.capability.action !== "string" ||
-        typeof record.capability.canonical !== "string" ||
-        !["ALLOW", "DENY"].includes(record.decision) ||
-        !toolNames.includes(record.tool) ||
-        !Array.isArray(record.arguments) ||
-        !record.arguments.every((argument) => typeof argument === "string") ||
-        typeof record.command !== "string" ||
-        typeof record.policyPath !== "string" ||
-        typeof record.reason !== "string"
-    ) {
-        throw new Error("Invalid audit broker request");
-    }
-    return record;
-}
 
 export function startAuditBroker(
     directory: string,
     env: NodeJS.ProcessEnv,
 ): Promise<{ close(): Promise<void> }> {
     return startFileBroker(directory, (input) =>
-        appendAuditRecord(parseRecord(input), env),
+        appendAuditRecord(parseAuditRecord(input), env),
     );
 }
 

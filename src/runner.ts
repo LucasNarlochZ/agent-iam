@@ -124,6 +124,8 @@ export async function runWithShims(
         AGENTIAM_NODE: nodePath,
         AGENTIAM_ENTRYPOINT: entrypoint,
         AGENTIAM_ORIGINAL_PATH: originalPath,
+        AGENTIAM_MCP_POLICY_CWD: resolve(options.cwd ?? process.cwd()),
+        AGENTIAM_MCP_POLICY_HOME: baseEnv.HOME,
         AGENTIAM_AUDIT_DIRECTORY: auditDirectory,
         AGENTIAM_APPROVAL_DIRECTORY: fileApproval
             ? approvalDirectory
@@ -143,7 +145,10 @@ export async function runWithShims(
                 baseEnv,
             );
         }
-        await harness.prepare?.(childEnv, directory, command, harnessVersion);
+        await harness.prepare?.(childEnv, directory, command, harnessVersion, {
+            args,
+            cwd: resolve(options.cwd ?? process.cwd()),
+        });
         const commandArgs = harness.commandArgs(args, childEnv);
         await Promise.all(
             toolNames.map(async (tool) => {

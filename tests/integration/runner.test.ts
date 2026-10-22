@@ -11,7 +11,7 @@ describe("shim runner", () => {
         const codex = join(bin, "codex");
         await writeFile(
             codex,
-            '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$AGENTIAM_TEST_OUTPUT"\n',
+            '#!/bin/sh\nif [ "$1" = "mcp" ] && [ "$2" = "list" ]; then printf \'[]\\n\'; exit 0; fi\nprintf \'%s\\n\' "$@" > "$AGENTIAM_TEST_OUTPUT"\n',
         );
         await chmod(codex, 0o755);
 

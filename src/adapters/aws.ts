@@ -1,5 +1,5 @@
 import { capability, type CanonicalCapability } from "../capability.js";
-import type { Adapter } from "./interfaces.js";
+import type { CliAdapter } from "./interfaces.js";
 
 const valueOptions = new Set([
     "--endpoint-url",
@@ -26,7 +26,7 @@ const flagOptions = new Set([
     "--no-cli-auto-prompt",
 ]);
 
-export class AwsCliAdapter implements Adapter {
+export class AwsCliAdapter implements CliAdapter {
     async normalize(args: string[]): Promise<CanonicalCapability<"aws">> {
         let index = 0;
         while (index < args.length) {

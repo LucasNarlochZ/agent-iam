@@ -1,11 +1,14 @@
 import { constants } from "node:fs";
-import { copyFile, mkdir } from "node:fs/promises";
+import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { loadPolicy, resolvePolicyPath } from "./policy/schema.js";
+import { resolvePolicyPath } from "./policy/schema.js";
+import { inspect } from "./inspect.js";
 import { runShim } from "./shim.js";
 import { runWithShims } from "./runner.js";
-import { isToolName } from "./tools.js";
+import { isToolName, isMcpToolName } from "./tools.js";
 import { serveMcpApprovals } from "./mcp-approval.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { serveMcpProxy } from "./mcp-proxy.js";
 
 interface Output {
     stdout: NodeJS.WritableStream;
@@ -22,7 +25,7 @@ export interface CliDependencies {
 }
 
 function usage(): string {
-    return "Usage: agentiam init\n       agentiam inspect\n       agentiam run -- <command> [args...]";
+    return "Usage: agentiam --version\n       agentiam init\n       agentiam inspect policy\n       agentiam inspect logs [--head [N] | --tail [N]] [--json]\n       agentiam run -- <command> [args...]\n       agentiam mcp <registered-tool> -- <command> [args...]";
 }
 
 export async function main(
@@ -43,6 +46,19 @@ export async function main(
     if (!command) {
         output.stderr.write(`${usage()}\n`);
         return 1;
+    }
+    if (command === "--version") {
+        if (args.length !== 1) {
+            output.stderr.write(
+                "agentiam --version does not accept arguments\n",
+            );
+            return 1;
+        }
+        const { version } = JSON.parse(
+            await readFile(new URL("../package.json", import.meta.url), "utf8"),
+        );
+        output.stdout.write(`${version}\n`);
+        return 0;
     }
     if (command === "init") {
         if (args.length !== 1) {
@@ -67,30 +83,38 @@ export async function main(
         }
     }
     if (command === "inspect") {
-        if (args.length !== 1) {
-            output.stderr.write("agentiam inspect does not accept arguments\n");
-            return 1;
-        }
-        try {
-            const { policy } = await loadPolicy(env);
-            const allow = Object.keys(policy.allow)
-                .sort()
-                .map((item) => `  ${item}`)
-                .join("\n");
-            const deny = Object.keys(policy.deny)
-                .sort()
-                .map((item) => `  ${item}`)
-                .join("\n");
-            output.stdout.write(
-                `Policy: ${resolvePolicyPath(env)}\nDefault: DENY\n\nALLOW\n${allow}\n\nDENY\n${deny}\n`,
-            );
-            return 0;
-        } catch (error) {
+        return inspect(args.slice(1), env, output);
+    }
+    if (command === "mcp") {
+        const tool = args[1];
+        if (!isMcpToolName(tool) || args[2] !== "--" || !args[3]) {
             output.stderr.write(
-                `[agentiam] ERROR ${error instanceof Error ? error.message : String(error)}\n`,
+                "agentiam mcp requires <registered-tool> -- <command> [args...]\n",
             );
             return 1;
         }
+        const childEnv = Object.fromEntries(
+            Object.entries(env).filter(
+                (entry): entry is [string, string] => entry[1] !== undefined,
+            ),
+        );
+        await serveMcpProxy(
+            tool,
+            new StdioClientTransport({
+                command: args[3],
+                args: args.slice(4),
+                env: childEnv,
+                stderr: "ignore",
+            }),
+            {
+                env: {
+                    ...env,
+                    HOME: env.AGENTIAM_MCP_POLICY_HOME ?? env.HOME,
+                },
+                cwd: env.AGENTIAM_MCP_POLICY_CWD,
+            },
+        );
+        return 0;
     }
     if (command === "run") {
         const separator = args.indexOf("--");

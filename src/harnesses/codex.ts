@@ -1,4 +1,5 @@
 import type { HarnessAdapter } from "./index.js";
+import { codexConfigArgs, prepareCodexMcp } from "./codex-mcp.js";
 
 const environmentKeys = [
     "PATH",
@@ -13,6 +14,9 @@ const environmentKeys = [
 
 export const codexHarnessAdapter: HarnessAdapter = {
     nativeApprovals: true,
+    async prepare(env, _directory, command, _version, context) {
+        if (command && context) await prepareCodexMcp(env, command, context);
+    },
     commandArgs(args, env) {
         const environmentOverrides = environmentKeys.flatMap((key) => {
             const value = env[key];
@@ -39,6 +43,19 @@ export const codexHarnessAdapter: HarnessAdapter = {
                       "mcp_servers.agentiam.required=true",
                   ]
                 : [];
-        return [...environmentOverrides, ...mcpOverrides, ...args];
+        const automatic = JSON.parse(
+            env.AGENTIAM_CODEX_MCP_OVERRIDES ?? "[]",
+        ) as string[];
+        const original =
+            automatic.length > 0
+                ? codexConfigArgs(args)
+                : { config: [], rest: args };
+        return [
+            ...original.config,
+            ...environmentOverrides,
+            ...mcpOverrides,
+            ...automatic,
+            ...original.rest,
+        ];
     },
 };

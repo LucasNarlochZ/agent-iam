@@ -3,6 +3,11 @@ import { claudeHarnessAdapter } from "./claude.js";
 import { codexHarnessAdapter } from "./codex.js";
 import { opencodeHarnessAdapter } from "./opencode.js";
 
+export interface HarnessPreparationContext {
+    args: string[];
+    cwd: string;
+}
+
 export interface HarnessAdapter {
     nativeApprovals: boolean;
     commandArgs(args: string[], env: NodeJS.ProcessEnv): string[];
@@ -11,6 +16,7 @@ export interface HarnessAdapter {
         directory: string,
         command?: string,
         version?: string,
+        context?: HarnessPreparationContext,
     ): void | Promise<void>;
 }
 

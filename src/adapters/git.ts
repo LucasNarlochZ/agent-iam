@@ -1,6 +1,6 @@
 import { capability, type CanonicalCapability } from "../capability.js";
 import { captureOutput, resolveExecutable } from "../process.js";
-import { Adapter } from "./interfaces.js";
+import type { CliAdapter } from "./interfaces.js";
 
 const valueOptions = new Set([
     "-C",
@@ -44,7 +44,7 @@ async function currentBranch(
     }
 }
 
-export class GitCliAdapter implements Adapter {
+export class GitCliAdapter implements CliAdapter {
     constructor(
         private readonly readStagedPaths = stagedPaths,
         private readonly readCurrentBranch = currentBranch,

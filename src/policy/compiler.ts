@@ -15,10 +15,13 @@ export function compilePolicy(policy: Policy): string {
         Object.entries(policy[kind]).flatMap(([capability, rule]) => {
             if (!rule || rule === true) return [];
             return Object.entries(rule).flatMap(([name, values]) =>
-                values.map(
-                    (value) =>
-                        `rule_constraint(${kind}, '${escapePrologAtom(capability)}', ${name}, '${escapePrologAtom(value)}').`,
-                ),
+                values.map((value) => {
+                    const normalized =
+                        capability.startsWith("github.") && name === "repos"
+                            ? value.toLowerCase()
+                            : value;
+                    return `rule_constraint(${kind}, '${escapePrologAtom(capability)}', ${name}, '${escapePrologAtom(normalized)}').`;
+                }),
             );
         }),
     );

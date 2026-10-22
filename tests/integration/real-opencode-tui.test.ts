@@ -212,11 +212,29 @@ describe.skipIf(!opencode || process.platform !== "linux")(
                         .trim()
                         .split("\n")
                         .map((line) => JSON.parse(line));
-                    expect(audit).toHaveLength(2);
-                    expect(audit.map(({ decision }) => decision)).toEqual([
-                        "DENY",
-                        choice === "allow" ? "ALLOW" : "DENY",
-                    ]);
+                    const authorizations = audit.filter(
+                        (record) => record.event === "authorization",
+                    );
+                    expect(authorizations).toHaveLength(2);
+                    expect(
+                        authorizations.map(({ decision }) => decision),
+                    ).toEqual(["DENY", choice === "allow" ? "ALLOW" : "DENY"]);
+                    const approval = audit.find(
+                        (record) => record.event === "approval",
+                    );
+                    const approvalChoice =
+                        choice === "cancel" || choice === "unavailable"
+                            ? "skip"
+                            : choice;
+                    expect(approval).toMatchObject({
+                        requestId: authorizations[0].requestId,
+                        approval: approvalChoice,
+                        decision: choice === "allow-once" ? "ALLOW" : "DENY",
+                        reasonCode:
+                            choice === "allow-once"
+                                ? "allow_once"
+                                : `approval_${approvalChoice}`,
+                    });
                     expect(
                         audit.every(
                             ({ capability }) =>

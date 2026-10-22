@@ -82,11 +82,17 @@ export function parsePolicy(source: string): Policy {
 export async function loadPolicy(
     env: NodeJS.ProcessEnv = process.env,
     cwd = process.cwd(),
-): Promise<{ policy: Policy; path: string; directoryPolicies: Policy[] }> {
+): Promise<{
+    policy: Policy;
+    path: string;
+    directoryPolicies: Policy[];
+    directoryPolicyPaths: string[];
+}> {
     const path = resolvePolicyPath(env);
     try {
         const policy = parsePolicy(await readFile(path, "utf8"));
         const directoryPolicies: Policy[] = [];
+        const directoryPolicyPaths: string[] = [];
         const globalPath = resolve(path);
         let directory = resolve(cwd);
         while (true) {
@@ -102,6 +108,7 @@ export async function loadPolicy(
                             await readFile(directoryPolicyPath, "utf8"),
                         ),
                     );
+                    directoryPolicyPaths.unshift(directoryPolicyPath);
                 } catch (error) {
                     if (!(
                         error instanceof Error &&
@@ -118,7 +125,7 @@ export async function loadPolicy(
             if (parent === directory) break;
             directory = parent;
         }
-        return { policy, path, directoryPolicies };
+        return { policy, path, directoryPolicies, directoryPolicyPaths };
     } catch (error) {
         if (error instanceof PolicyError)
             throw new PolicyError(`${path}: ${error.message}`);
