@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/LucasNarlochZ/agent-iam/compare/core-v0.4.0...core-v0.4.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* handle unavailable native approvals and verify Claude Code ([1625cc9](https://github.com/LucasNarlochZ/agent-iam/commit/1625cc90be8fbbd7d728e436c7c519aba2a5a06b))
+* skip native approvals when the socket is unavailable ([b74c5e2](https://github.com/LucasNarlochZ/agent-iam/commit/b74c5e2b11e64e26c303c87a1b493a7846f2fc9d))
+
 ## [0.4.0](https://github.com/LucasNarlochZ/agent-iam/compare/core-v0.3.1...core-v0.4.0) (2026-10-22)
 
 
