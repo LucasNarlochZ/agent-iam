@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Writable } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { runShim } from "../../src/shim.js";
+import { resolveAuditPath } from "../../src/audit.js";
 
 async function fakeTool(directory: string, tool: string): Promise<string> {
     const path = join(directory, tool);
@@ -16,6 +17,139 @@ async function fakeTool(directory: string, tool: string): Promise<string> {
 }
 
 describe("command shim", () => {
+    it.each([
+        {
+            policy: "allow:\n  git.add: true\n",
+            args: ["add", "file.txt"],
+            code: "allow_rule",
+            decision: "ALLOW",
+        },
+        {
+            policy: "deny:\n  git.add: true\n",
+            args: ["add", "file.txt"],
+            code: "deny_rule",
+            decision: "DENY",
+        },
+        {
+            policy: "allow: {}\n",
+            args: ["add", "file.txt"],
+            code: "no_allow_rule",
+            decision: "DENY",
+        },
+        {
+            policy: "allow: {}\n",
+            args: ["not-a-command"],
+            code: "unsupported_capability",
+            decision: "DENY",
+        },
+        {
+            policy: "allow: invalid\n",
+            args: ["add", "file.txt"],
+            code: "policy_error",
+            decision: "DENY",
+        },
+    ])(
+        "audits $code with an explanation",
+        async ({ policy, args, code, decision }) => {
+            const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
+            const bin = await mkdtemp(join(tmpdir(), "agentiam-shim-bin-"));
+            await fakeTool(bin, "git");
+            await mkdir(join(home, ".agentiam"));
+            await writeFile(join(home, ".agentiam", "policy.yaml"), policy);
+            await runShim({
+                tool: "git",
+                args,
+                env: {
+                    HOME: home,
+                    PATH: bin,
+                    AGENTIAM_TEST_OUTPUT: join(home, "args.txt"),
+                },
+                cwd: home,
+                promptForApproval: async () => "skip",
+            });
+            const [record] = (
+                await readFile(resolveAuditPath({ HOME: home }), "utf8")
+            )
+                .trim()
+                .split("\n")
+                .map((line) => JSON.parse(line));
+            expect(record).toMatchObject({
+                decision,
+                reasonCode: code,
+                event: "authorization",
+            });
+            expect(record.reason.length).toBeGreaterThan(10);
+        },
+    );
+
+    it("audits allow-once separately before executing the command", async () => {
+        const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
+        const bin = await mkdtemp(join(tmpdir(), "agentiam-shim-bin-"));
+        await fakeTool(bin, "git");
+        await mkdir(join(home, ".agentiam"));
+        await writeFile(join(home, ".agentiam", "policy.yaml"), "allow: {}\n");
+        const code = await runShim({
+            tool: "git",
+            args: ["add", "file.txt"],
+            env: {
+                HOME: home,
+                PATH: bin,
+                AGENTIAM_TEST_OUTPUT: join(home, "args.txt"),
+            },
+            cwd: home,
+            promptForApproval: async () => "allow-once",
+        });
+        expect(code).toBe(7);
+        const records = (
+            await readFile(resolveAuditPath({ HOME: home }), "utf8")
+        )
+            .trim()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+        expect(records).toHaveLength(2);
+        expect(records[0].requestId).toEqual(expect.any(String));
+        expect(records[1].requestId).toBe(records[0].requestId);
+        expect(records[0]).toMatchObject({
+            decision: "DENY",
+            reasonCode: "no_allow_rule",
+        });
+        expect(records[1]).toMatchObject({
+            decision: "ALLOW",
+            event: "approval",
+            approval: "allow-once",
+            reasonCode: "allow_once",
+        });
+        expect(records[1].reason).toContain("policy unchanged");
+    });
+
+    it("records why an approval broker was unavailable", async () => {
+        const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
+        await mkdir(join(home, ".agentiam"));
+        await writeFile(join(home, ".agentiam", "policy.yaml"), "allow: {}\n");
+        const code = await runShim({
+            tool: "git",
+            args: ["add", "file.txt"],
+            cwd: home,
+            env: {
+                HOME: home,
+                PATH: "",
+                AGENTIAM_APPROVAL_SOCKET: join(home, "missing.sock"),
+            },
+        });
+        expect(code).toBe(126);
+        const records = (
+            await readFile(resolveAuditPath({ HOME: home }), "utf8")
+        )
+            .trim()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+        expect(records.at(-1)).toMatchObject({
+            reasonCode: "approval_skip",
+            decision: "DENY",
+        });
+        expect(records.at(-1).reason).toContain("broker unavailable");
+    });
+
     it.each([
         {
             tool: "git" as const,
@@ -286,6 +420,19 @@ describe("command shim", () => {
         expect(await readFile(policyPath, "utf8")).toContain(
             "github.pr.merge:\n    repos:\n      - owner/repo",
         );
+        const records = (
+            await readFile(resolveAuditPath({ HOME: home }), "utf8")
+        )
+            .trim()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+        expect(records.at(-1)).toMatchObject({
+            decision: "DENY",
+            event: "approval",
+            approval: "allow-context",
+            reasonCode: "approval_allow_context",
+        });
+        expect(records.at(-1).reason).toContain("retry");
         expect(messages).toContain("Saved allow rule");
         expect(messages).toContain("retry the command");
     });

@@ -62,10 +62,22 @@ deny:
 Explicit denies take precedence. Project policies can add restrictions, and supported rules can be scoped by repository, branch, or staged paths.
 
 ```bash
-agentiam inspect
+agentiam inspect policy
 ```
 
 See the [policy guide](docs/POLICIES.md) and [supported commands](docs/CAPABILITIES.md) for available rules and their limits.
+
+## Understand decisions
+
+See why actions were allowed or denied, including the policy responsible:
+
+```bash
+agentiam inspect logs
+agentiam inspect logs --tail 10
+agentiam inspect logs --head 5 --json
+```
+
+See [audit logs](docs/OBSERVABILITY.md) for output formats and approval events.
 
 ## Documentation
 
@@ -73,6 +85,7 @@ See the [policy guide](docs/POLICIES.md) and [supported commands](docs/CAPABILIT
 - [Supported commands](docs/CAPABILITIES.md): Git, GitHub CLI, and AWS capabilities.
 - [Coding agent integrations](docs/INTEGRATIONS.md): Codex, OpenCode, and Claude Code setup and compatibility.
 - [GitHub MCP](docs/MCP.md): automatic wrapping, manual proxy setup, and supported tools.
+- [Audit logs](docs/OBSERVABILITY.md): inspect authorization reasons and approval outcomes.
 - [Architecture](docs/ARCHITECTURE.md): enforcement flow, audit logging, and security boundaries.
 - [Development](docs/DEVELOPMENT.md): build, test, and extend Agent IAM.
 - [Changelog](CHANGELOG.md): release history.

@@ -1,7 +1,8 @@
 import { constants } from "node:fs";
 import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { loadPolicy, resolvePolicyPath } from "./policy/schema.js";
+import { resolvePolicyPath } from "./policy/schema.js";
+import { inspect } from "./inspect.js";
 import { runShim } from "./shim.js";
 import { runWithShims } from "./runner.js";
 import { isToolName, isMcpToolName } from "./tools.js";
@@ -24,7 +25,7 @@ export interface CliDependencies {
 }
 
 function usage(): string {
-    return "Usage: agentiam --version\n       agentiam init\n       agentiam inspect\n       agentiam run -- <command> [args...]\n       agentiam mcp <registered-tool> -- <command> [args...]";
+    return "Usage: agentiam --version\n       agentiam init\n       agentiam inspect policy\n       agentiam inspect logs [--head [N] | --tail [N]] [--json]\n       agentiam run -- <command> [args...]\n       agentiam mcp <registered-tool> -- <command> [args...]";
 }
 
 export async function main(
@@ -82,30 +83,7 @@ export async function main(
         }
     }
     if (command === "inspect") {
-        if (args.length !== 1) {
-            output.stderr.write("agentiam inspect does not accept arguments\n");
-            return 1;
-        }
-        try {
-            const { policy } = await loadPolicy(env);
-            const allow = Object.keys(policy.allow)
-                .sort()
-                .map((item) => `  ${item}`)
-                .join("\n");
-            const deny = Object.keys(policy.deny)
-                .sort()
-                .map((item) => `  ${item}`)
-                .join("\n");
-            output.stdout.write(
-                `Policy: ${resolvePolicyPath(env)}\nDefault: DENY\n\nALLOW\n${allow}\n\nDENY\n${deny}\n`,
-            );
-            return 0;
-        } catch (error) {
-            output.stderr.write(
-                `[agentiam] ERROR ${error instanceof Error ? error.message : String(error)}\n`,
-            );
-            return 1;
-        }
+        return inspect(args.slice(1), env, output);
     }
     if (command === "mcp") {
         const tool = args[1];

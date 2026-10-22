@@ -182,7 +182,8 @@ describe.skipIf(!codex || process.platform !== "linux")(
                     )
                         .trim()
                         .split("\n")
-                        .map((line) => JSON.parse(line));
+                        .map((line) => JSON.parse(line))
+                        .filter((record) => record.event === "authorization");
                     expect(audit).toHaveLength(2);
                     expect(audit.map(({ decision }) => decision)).toEqual([
                         "DENY",

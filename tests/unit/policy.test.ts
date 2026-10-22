@@ -5,6 +5,7 @@ import { compilePolicy, escapePrologAtom } from "../../src/policy/compiler.js";
 import {
     buildDecisionGoal,
     evaluatePolicy,
+    evaluatePolicies,
     PolicyEngine,
 } from "../../src/policy/engine.js";
 
@@ -75,6 +76,70 @@ describe("policy compiler", () => {
 });
 
 describe("policy engine", () => {
+    it.each([
+        {
+            policy: { allow: { "git.add": true as const }, deny: {} },
+            canonical: "git.add",
+            code: "allow_rule",
+            reason: "global allow rule",
+        },
+        {
+            policy: { allow: {}, deny: { "git.add": true as const } },
+            canonical: "git.add",
+            code: "deny_rule",
+            reason: "global deny rule",
+        },
+        {
+            policy: { allow: {}, deny: {} },
+            canonical: "git.add",
+            code: "no_allow_rule",
+            reason: "no allow rule",
+        },
+        {
+            policy: { allow: {}, deny: {} },
+            canonical: "git.unknown",
+            code: "unsupported_capability",
+            reason: "unsupported capability",
+        },
+        {
+            policy: {
+                allow: { "git.commit": { paths: ["safe.txt"] } },
+                deny: {},
+            },
+            canonical: "git.commit",
+            code: "constraint_mismatch",
+            reason: "constraints did not match",
+        },
+    ])("explains $code", async ({ policy, canonical, code, reason }) => {
+        const result = await evaluatePolicies(policy, [], {
+            service: "git",
+            action: canonical.slice(4),
+            canonical,
+        });
+        expect(result.reasonCode).toBe(code);
+        expect(result.reason).toContain(reason);
+        expect(result.reason).toContain(canonical);
+    });
+
+    it("identifies the directory policy that denied an action", async () => {
+        const result = await evaluatePolicies(
+            { allow: { "git.add": true }, deny: {} },
+            [{ allow: {}, deny: { "git.add": true } }],
+            { service: "git", action: "add", canonical: "git.add" },
+            {
+                global: "/home/user/.agentiam/policy.yaml",
+                directories: ["/project/.agentiam/policy.yaml"],
+            },
+        );
+        expect(result).toMatchObject({
+            decision: "DENY",
+            reasonCode: "deny_rule",
+            policyScope: "directory",
+            policyPath: "/project/.agentiam/policy.yaml",
+        });
+        expect(result.reason).toContain("directory deny rule");
+    });
+
     it("delegates the final allow decision to decision/2", () => {
         expect(
             buildDecisionGoal({

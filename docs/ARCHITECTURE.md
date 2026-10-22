@@ -62,16 +62,18 @@ Successful authorization does not prove that GitHub completed an operation. Fail
 
 ## Audit log
 
-Authorization attempts are appended to `~/.agentiam/audit.jsonl`. If an audit entry cannot be written, the real command or upstream tool is not executed.
+Authorization attempts and CLI approval outcomes are appended to `~/.agentiam/audit.jsonl`. Use `agentiam inspect logs` to read them; see [audit logs](OBSERVABILITY.md) for options, reason codes, and event semantics. If a required audit entry cannot be written, the real command or upstream tool is not executed.
 
 With `agentiam run`, shims send records to the parent through a private file-based channel. The parent writes the log using its own environment and acknowledges the write before an allowed command can execute. Codex receives the channel path through its shell environment configuration, allowing sandboxed commands to log without write access to `~/.agentiam` or Unix-socket connections.
 
 The sandbox must allow reading and writing the temporary channel directory. A missing acknowledgement after five seconds or an audit-write error denies execution and prints the underlying error. An acknowledgement failure can leave a recorded attempt even though execution was denied. The channel is removed when the wrapped process exits. Direct shim invocations without a parent channel write the log themselves.
 
-CLI records include the timestamp, structured capability, decision, tool, original arguments, display command, policy path, and reason:
+CLI records include the timestamp, structured capability, decision, tool, original arguments, display command, decisive policy path, and reason. New records add a request identifier, event type, reason code, and policy scope when available:
 
 ```json
 {
+    "requestId": "b591e952-ccf6-45c5-97fe-e840b22efdb0",
+    "event": "authorization",
     "timestamp": "2026-08-15T12:00:00.000Z",
     "capability": {
         "service": "git",
@@ -83,7 +85,9 @@ CLI records include the timestamp, structured capability, decision, tool, origin
     "arguments": ["commit", "-m", "fix"],
     "command": "git commit -m fix",
     "policyPath": "/home/user/.agentiam/policy.yaml",
-    "reason": "matched allow rule"
+    "policyScope": "global",
+    "reasonCode": "allow_rule",
+    "reason": "matched global allow rule for git.commit"
 }
 ```
 

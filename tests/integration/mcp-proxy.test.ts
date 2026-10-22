@@ -257,7 +257,12 @@ describe("built MCP proxy", () => {
             }),
         ).toMatchObject({ isError: true });
         expect(await fixture.calls()).toEqual([]);
-        expect((await fixture.records())[0].decision).toBe("DENY");
+        expect((await fixture.records())[0]).toMatchObject({
+            decision: "DENY",
+            reasonCode: "deny_rule",
+            policyScope: "directory",
+            policyPath: join(fixture.project, ".agentiam", "policy.yaml"),
+        });
     });
 
     it("denies malformed policies without forwarding", async () => {
@@ -272,7 +277,8 @@ describe("built MCP proxy", () => {
         expect(await fixture.calls()).toEqual([]);
         expect((await fixture.records())[0]).toMatchObject({
             decision: "DENY",
-            reason: "policy evaluation failed",
+            reasonCode: "policy_error",
+            reason: "policy is invalid; call denied before forwarding",
         });
     });
 

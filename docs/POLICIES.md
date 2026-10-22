@@ -4,10 +4,10 @@ Agent IAM reads the global user policy from `~/.agentiam/policy.yaml`. Create it
 
 ```bash
 agentiam init
-agentiam inspect
+agentiam inspect policy
 ```
 
-`init` does not overwrite an existing policy. `inspect` shows the global policy, not a merged view of directory restrictions.
+`init` does not overwrite an existing policy. `inspect policy` shows the global policy and its constraints, not a merged view of directory restrictions. Bare `agentiam inspect` now prints subcommand usage; use `agentiam inspect policy` in existing scripts.
 
 ## Allow and deny rules
 
@@ -69,8 +69,8 @@ When running directly in a terminal, both stdin and stderr must be attached to a
 ## Troubleshooting a missing prompt
 
 1. Check the capability in the `[agentiam] DENY ...` message against [supported commands](CAPABILITIES.md). For example, `github.issues.list` is unsupported; the correct command is `gh issue list`.
-2. Run `agentiam inspect` and check for an explicit deny. Also check directory policies.
+2. Run `agentiam inspect policy` and check for an explicit deny. Also check directory policies.
 3. Check for policy-loading or audit-write errors. Both prevent approval.
 4. Use an interactive terminal or a supported native agent approval bridge. Pipes and non-interactive execution do not provide a terminal prompt.
 
-Authorization attempts are recorded in `~/.agentiam/audit.jsonl`; see the [audit reference](ARCHITECTURE.md#audit-log).
+Use `agentiam inspect logs --tail 10` to see the decision reasons. Authorization attempts and approval outcomes are recorded in `~/.agentiam/audit.jsonl`; see [audit logs](OBSERVABILITY.md).

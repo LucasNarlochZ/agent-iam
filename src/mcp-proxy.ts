@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -10,7 +11,7 @@ import { appendAuditRecord, type AuditRecord } from "./audit.js";
 import { requestAuditWrite } from "./audit-broker.js";
 import { capability } from "./capability.js";
 import { evaluatePolicies } from "./policy/engine.js";
-import { loadPolicy, resolvePolicyPath } from "./policy/schema.js";
+import { loadPolicy, resolvePolicyPath, PolicyError } from "./policy/schema.js";
 import { mcpTools, type McpToolName, type McpAuditToolName } from "./tools.js";
 
 export interface McpProxyOptions {
@@ -56,6 +57,9 @@ export function createMcpProxy(
         const normalized = await adapter.normalize(request.params);
         let decision: "ALLOW" | "DENY" = "DENY";
         let reason = "unsupported MCP tool or arguments";
+        let reasonCode = "unsupported_capability";
+        let policyPath = resolvePolicyPath(env);
+        let policyScope: "global" | "directory" | undefined;
         if (normalized) {
             try {
                 const loaded = await loadPolicy(env, options.cwd);
@@ -63,25 +67,45 @@ export function createMcpProxy(
                     loaded.policy,
                     loaded.directoryPolicies,
                     normalized,
+                    {
+                        global: loaded.path,
+                        directories: loaded.directoryPolicyPaths,
+                    },
                 );
                 decision = result.decision;
                 reason = result.reason;
-            } catch {
-                reason = "policy evaluation failed";
+                reasonCode = result.reasonCode ?? "policy_error";
+                policyPath = result.policyPath ?? policyPath;
+                policyScope = result.policyScope;
+            } catch (error) {
+                reasonCode = "policy_error";
+                reason =
+                    error instanceof PolicyError
+                        ? error.message.includes("ENOENT")
+                            ? "policy file is missing; call denied before forwarding"
+                            : error.message.includes("EACCES") ||
+                                error.message.includes("EPERM")
+                              ? "policy file is unreadable; call denied before forwarding"
+                              : "policy is invalid; call denied before forwarding"
+                        : "policy evaluation failed; call denied before forwarding";
             }
         }
         const safeName = adapter.supportsTool(request.params.name)
             ? request.params.name
             : "unsupported";
         const record: AuditRecord = {
+            requestId: randomUUID(),
             timestamp: new Date().toISOString(),
             capability: normalized ?? capability(tool.service, "unknown"),
             decision,
             tool: auditTool,
             arguments: [safeName],
             command: `${auditTool} ${safeName}`,
-            policyPath: resolvePolicyPath(env),
+            policyPath,
             reason,
+            reasonCode,
+            policyScope,
+            event: "authorization",
         };
         try {
             if (env.AGENTIAM_AUDIT_DIRECTORY) {

@@ -66,7 +66,7 @@ describe("built CLI", () => {
         const execOptions = { env, cwd: home };
         const inspected = await exec(
             process.execPath,
-            [cli, "inspect"],
+            [cli, "inspect", "policy"],
             execOptions,
         );
         expect(inspected.stdout).toContain("Default: DENY");
@@ -85,5 +85,23 @@ describe("built CLI", () => {
                 execOptions,
             ),
         ).rejects.toMatchObject({ code: 126 });
+        const logs = await exec(
+            process.execPath,
+            [cli, "inspect", "logs", "--tail", "1", "--json"],
+            execOptions,
+        );
+        expect(JSON.parse(logs.stdout)).toMatchObject({
+            decision: "DENY",
+            reasonCode: "deny_rule",
+            policyScope: "global",
+            capability: { canonical: "github.pr.merge" },
+        });
+        const first = await exec(
+            process.execPath,
+            [cli, "inspect", "logs", "--head", "1"],
+            execOptions,
+        );
+        expect(first.stdout).toContain("ALLOW git.commit");
+        expect(first.stdout).toContain("matched global allow rule");
     });
 });
