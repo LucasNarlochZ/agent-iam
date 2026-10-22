@@ -16,6 +16,45 @@ async function fakeTool(directory: string, tool: string): Promise<string> {
 }
 
 describe("command shim", () => {
+    it.each([
+        {
+            tool: "git" as const,
+            args: ["add", "file.txt"],
+            canonical: "git.add",
+        },
+        {
+            tool: "gh" as const,
+            args: ["pr", "review", "42", "--repo", "owner/repo"],
+            canonical: "github.pr.review",
+        },
+    ])(
+        "prompts and persists approval for $canonical without executing it",
+        async ({ tool, args, canonical }) => {
+            const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
+            await mkdir(join(home, ".agentiam"));
+            const policyPath = join(home, ".agentiam", "policy.yaml");
+            await writeFile(policyPath, "allow: {}\ndeny: {}\n");
+            let requested = "";
+
+            const code = await runShim({
+                tool,
+                args,
+                env: { HOME: home, PATH: "" },
+                cwd: home,
+                promptForApproval: async (capability) => {
+                    requested = capability.canonical;
+                    return "allow";
+                },
+            });
+
+            expect(requested).toBe(canonical);
+            expect(code).toBe(126);
+            expect(await readFile(policyPath, "utf8")).toContain(
+                `${canonical}: true`,
+            );
+        },
+    );
+
     it("applies a parent directory policy as an additional restriction", async () => {
         const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
         const bin = await mkdtemp(join(tmpdir(), "agentiam-shim-bin-"));
@@ -195,7 +234,7 @@ describe("command shim", () => {
 
         const code = await runShim({
             tool: "gh",
-            args: ["auth", "status"],
+            args: ["issues", "list"],
             env: {
                 HOME: home,
                 PATH: bin,

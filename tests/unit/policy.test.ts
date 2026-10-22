@@ -42,9 +42,9 @@ describe("policy schema", () => {
         expect(() => parsePolicy("allow: git.commit\n")).toThrow(
             "Policy 'allow' must be an object",
         );
-        expect(() => parsePolicy("allow:\n  github.pr.close: true\n")).toThrow(
-            "Unknown capability 'github.pr.close'",
-        );
+        expect(() =>
+            parsePolicy("allow:\n  github.pr.unknown: true\n"),
+        ).toThrow("Unknown capability 'github.pr.unknown'");
         expect(() =>
             parsePolicy("allow:\n  git.commit:\n    branches:\n      - main\n"),
         ).toThrow("Unknown constraint 'branches' for 'git.commit'");

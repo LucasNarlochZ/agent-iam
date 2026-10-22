@@ -52,6 +52,35 @@ Examples:
 
 Unknown command structures are normalized deterministically and denied.
 
+### Supported Git and GitHub CLI commands
+
+Git capabilities use `git.<command>`. Supported commands are:
+
+```text
+add am apply archive bisect blame branch bundle checkout cherry-pick clean
+clone commit config describe diff fetch grep init log ls-files ls-remote
+merge mv pull push rebase reflog remote reset restore revert rev-parse rm
+show stash status submodule switch symbolic-ref tag worktree
+```
+
+GitHub CLI capabilities use `github.<group>.<command>`:
+
+| Group | Supported commands |
+| --- | --- |
+| `issue` | close, comment, create, delete, develop, edit, list, lock, pin, reopen, status, transfer, unlock, unpin, view |
+| `pr` | checks, checkout, close, comment, create, diff, edit, list, lock, merge, ready, reopen, review, status, unlock, update-branch, view |
+| `repo` | archive, clone, create, delete, edit, fork, list, rename, set-default, sync, unarchive, view |
+| `run` | cancel, delete, download, list, rerun, view, watch |
+| `workflow` | disable, enable, list, run, view |
+| `release` | create, delete, delete-asset, download, edit, list, upload, view |
+| `auth` | login, logout, refresh, setup-git, status, switch, token |
+| `search` | code, commits, issues, prs, repos |
+| `gist` | clone, create, delete, edit, list, rename, view |
+
+Registration does not grant permission: unmatched capabilities still require approval in an interactive terminal, and explicit denies still block without prompting. Use `gh issue list`, not `gh issues list`; aliases, extensions, and arbitrary `gh api` calls are not covered by this list.
+
+Git permissions apply to the whole subcommand, including its flags and nested operations (for example, `git branch` includes branch deletion). Only `git.commit` and `git.push` currently support path and branch constraints, respectively. GitHub issue, PR, run, workflow, release, and `repo.view` capabilities support repository constraints. The other repo commands and the auth, search, and gist groups are capability-wide; their positional targets or account-wide effects are not scoped to the current repository.
+
 ## Requirements
 
 - Node.js 20 or newer
