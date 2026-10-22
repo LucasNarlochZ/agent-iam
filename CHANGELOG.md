@@ -40,6 +40,7 @@
 
 ### Fixed
 
+- Treat missing or unavailable native approval sockets as skipped approvals without logging a broker failure, while keeping commands denied
 - Record an `ALLOW` approval event before executing a one-time-approved command instead of leaving only its initial denial in the audit trail
 - Distinguish unsupported commands from missing permissions so denied actions explain why policy approval is unavailable
 - Handle closed stdin during MCP upstream initialization and clean up the upstream process when the client disconnects

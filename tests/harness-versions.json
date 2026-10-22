@@ -1,4 +1,8 @@
 {
+    "claude": {
+        "package": "@anthropic-ai/claude-code",
+        "version": "2.1.308"
+    },
     "codex": {
         "package": "@openai/codex",
         "version": "0.162.1"
