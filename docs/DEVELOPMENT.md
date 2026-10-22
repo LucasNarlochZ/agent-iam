@@ -30,7 +30,7 @@ Tests use temporary homes and fake binaries so they do not modify a developer's 
 
 ## Fast local tests
 
-`npm test` builds Agent IAM and runs unit and integration tests, excluding the real Codex and OpenCode suites. It uses installed project dependencies and requires no Docker daemon or installed coding harnesses. Test filters are forwarded to Vitest:
+`npm test` builds Agent IAM and runs unit and integration tests, excluding the real Claude Code, Codex, and OpenCode suites. It uses installed project dependencies and requires no Docker daemon or installed coding harnesses. Test filters are forwarded to Vitest:
 
 ```bash
 npm test
@@ -41,17 +41,20 @@ npm test -- tests/unit/policy.test.ts
 
 ## Isolated tests
 
-`npm run test:isolated` builds a Docker image and runs the complete suite, including real CLI integration tests, in a disposable container. It requires a running Docker daemon. Local OpenCode, Codex, dependencies, build output, credentials, and configuration are not used. Filters are forwarded to Vitest:
+`npm run test:isolated` builds a Docker image and runs the complete suite, including real CLI integration tests, in a disposable container. It requires a running Docker daemon. Local Claude Code, OpenCode, Codex, dependencies, build output, credentials, and configuration are not used. Filters are forwarded to Vitest:
 
 ```bash
 npm run test:isolated
+npm run test:isolated -- tests/integration/real-claude.test.ts
 npm run test:isolated -- tests/integration/real-opencode.test.ts
 npm run test:isolated -- tests/integration/real-codex-tui.test.ts
 ```
 
-The image pins Node.js 24.21.0 by digest, installs Zsh from a dated Debian package snapshot, and installs project dependencies with `npm ci`. Codex 0.162.1 and OpenCode 2.0.29 are pinned in [`tests/harnesses/package.json`](../tests/harnesses/package.json), with transitive dependencies locked in its adjacent lockfile. Keep those versions consistent with [`tests/harness-versions.json`](../tests/harness-versions.json); the image build checks this.
+The image pins Node.js 24.21.0 by digest, installs Zsh from a dated Debian package snapshot, and installs project dependencies with `npm ci`. Claude Code 2.1.308, Codex 0.162.1, and OpenCode 2.0.29 are pinned in [`tests/harnesses/package.json`](../tests/harnesses/package.json), with transitive dependencies locked in its adjacent lockfile. Keep those versions consistent with [`tests/harness-versions.json`](../tests/harness-versions.json); the image build checks this.
 
 Image provisioning requires registry and Debian snapshot access. Docker caches installation layers for subsequent runs. External networking is disabled in the test container; loopback remains available for scripted local servers. No host directories are mounted, and the container is removed after execution. CI runs the same command.
+
+On Linux, Claude Code tests use a local scripted Messages API server and fake AWS executable to check allowed commands, explicit denials, and noninteractive approval requests. They verify MCP connectivity, execution, and audit records without real model inference or credentials. They do not exercise interactive Claude approval dialogs. Commands needing approval remain denied when the native approval socket is unavailable, including during startup.
 
 ## Local CLI compatibility tests
 
