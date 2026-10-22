@@ -15,7 +15,7 @@
 
 ### Changed
 
-- **Breaking:** Replace `agentiam inspect` with `agentiam inspect policy`; bare `inspect` now displays subcommand usage, and policy inspection includes configured constraints
+- Replace `agentiam inspect` with `agentiam inspect policy`; bare `inspect` now displays subcommand usage, and policy inspection includes configured constraints
 - Include authorization explanations in CLI allow and deny messages, with expected and actual context for constraint mismatches
 - Compare GitHub repository constraints case-insensitively across CLI and MCP policies
 - Reorganize the README around installation and quick start, moving architecture, policy rules, command coverage, integrations, MCP setup, observability, and development details into focused guides under `docs/`
