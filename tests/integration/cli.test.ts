@@ -8,6 +8,22 @@ import { describe, expect, it } from "vitest";
 const exec = promisify(execFile);
 
 describe("built CLI", () => {
+    it("prints the package version from outside the project directory", async () => {
+        const home = await mkdtemp(join(tmpdir(), "agentiam-cli-home-"));
+        const { version } = JSON.parse(
+            await readFile(resolve("package.json"), "utf8"),
+        );
+
+        const result = await exec(
+            process.execPath,
+            [resolve("dist/index.js"), "--version"],
+            { cwd: home, env: { ...process.env, HOME: home } },
+        );
+
+        expect(result.stdout).toBe(`${version}\n`);
+        expect(result.stderr).toBe("");
+    });
+
     it("initializes the user policy from the example", async () => {
         const home = await mkdtemp(join(tmpdir(), "agentiam-cli-home-"));
         const cli = resolve("dist/index.js");

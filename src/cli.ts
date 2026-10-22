@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { copyFile, mkdir } from "node:fs/promises";
+import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { loadPolicy, resolvePolicyPath } from "./policy/schema.js";
 import { runShim } from "./shim.js";
@@ -24,7 +24,7 @@ export interface CliDependencies {
 }
 
 function usage(): string {
-    return "Usage: agentiam init\n       agentiam inspect\n       agentiam run -- <command> [args...]\n       agentiam mcp <registered-tool> -- <command> [args...]";
+    return "Usage: agentiam --version\n       agentiam init\n       agentiam inspect\n       agentiam run -- <command> [args...]\n       agentiam mcp <registered-tool> -- <command> [args...]";
 }
 
 export async function main(
@@ -45,6 +45,19 @@ export async function main(
     if (!command) {
         output.stderr.write(`${usage()}\n`);
         return 1;
+    }
+    if (command === "--version") {
+        if (args.length !== 1) {
+            output.stderr.write(
+                "agentiam --version does not accept arguments\n",
+            );
+            return 1;
+        }
+        const { version } = JSON.parse(
+            await readFile(new URL("../package.json", import.meta.url), "utf8"),
+        );
+        output.stdout.write(`${version}\n`);
+        return 0;
     }
     if (command === "init") {
         if (args.length !== 1) {
