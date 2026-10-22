@@ -18,6 +18,8 @@ npm run typecheck
 npm test
 ```
 
+Before opening any pull request, also run `npm run test:isolated`. Fix failures and rerun the complete isolated suite before creating the PR; fast local tests alone are not sufficient. If Docker or another prerequisite is unavailable, report the blocker instead of opening an unverified PR.
+
 ## Extending integrations
 
 Tool integrations are registered in [`src/tools.ts`](../src/tools.ts). Adding a command-only tool integration requires an adapter class and a registry entry; shim creation, CLI validation, auditing, and policy capability validation derive metadata from that registry. Integrations with policy constraints also define their constraint extraction there.
