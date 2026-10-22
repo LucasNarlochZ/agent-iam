@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.0](https://github.com/LucasNarlochZ/agent-iam/compare/core-v0.3.1...core-v0.4.0) (2026-10-22)
+
+
+### Features
+
+* add --version CLI command ([663cc6a](https://github.com/LucasNarlochZ/agent-iam/commit/663cc6a7231a8d20d320e7a2e341f2f92d5a54a9))
+* add GitHub MCP enforcement and audit inspection ([d3e06e8](https://github.com/LucasNarlochZ/agent-iam/commit/d3e06e8c9c77c17de6240edb828558ca5c573d7c))
+* automatically proxy MCP servers in supported harnesses ([6d89ff8](https://github.com/LucasNarlochZ/agent-iam/commit/6d89ff8a014473eb4a24a011dd0687939a8ead96))
+* enforce GitHub MCP calls through a stdio proxy ([de62c6c](https://github.com/LucasNarlochZ/agent-iam/commit/de62c6c74832d61c30d889fd38d370a41160018d))
+* enforce GitHub MCP calls through a stdio proxy ([b133a54](https://github.com/LucasNarlochZ/agent-iam/commit/b133a540a49a3c18c419ad20654ba4e6bae8ac36))
+* expand common git and GitHub CLI capability coverage ([444f998](https://github.com/LucasNarlochZ/agent-iam/commit/444f99836a84106031d07a63e51e8811b6d043f2))
+* explain audit decisions and add inspect logs commands ([6abbdcf](https://github.com/LucasNarlochZ/agent-iam/commit/6abbdcf8fe3967ea337e3a37957c76747369d684))
+
+
+### Bug Fixes
+
+* handle closed stdin during MCP upstream initialization ([db2de61](https://github.com/LucasNarlochZ/agent-iam/commit/db2de61d303e05f8e13bc3f7c2c2b0bfeaa3917a))
+
 ## [Unreleased]
 
 ### Added
