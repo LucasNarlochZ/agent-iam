@@ -96,7 +96,16 @@ export async function runWithShims(
         capability: CanonicalCapability,
     ): Promise<ApprovalChoice> => {
         if (nativeApproval) {
-            return requestBrokerApproval(nativeApprovalSocket, capability);
+            try {
+                return await requestBrokerApproval(
+                    nativeApprovalSocket,
+                    capability,
+                );
+            } catch (error) {
+                const code = (error as NodeJS.ErrnoException).code;
+                if (code === "ENOENT" || code === "ECONNREFUSED") return "skip";
+                throw error;
+            }
         }
         const running = child?.exitCode === null;
         if (running) child?.kill("SIGSTOP");

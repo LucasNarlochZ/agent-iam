@@ -1,10 +1,51 @@
 import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { runWithShims } from "../../src/runner.js";
 
 describe("shim runner", () => {
+    it("fails closed without an error before native approvals are available", async () => {
+        const home = await mkdtemp(join(tmpdir(), "agentiam-run-home-"));
+        const bin = await mkdtemp(join(tmpdir(), "agentiam-run-bin-"));
+        const claude = join(bin, "claude");
+        const output = join(home, "executed");
+        const policy = "allow: {}\ndeny: {}\n";
+        await mkdir(join(home, ".agentiam"));
+        const policyPath = join(home, ".agentiam", "policy.yaml");
+        await writeFile(policyPath, policy);
+        await writeFile(claude, "#!/bin/sh\ngit remote -v\n");
+        await writeFile(
+            join(bin, "git"),
+            '#!/bin/sh\nprintf executed > "$AGENTIAM_TEST_OUTPUT"\n',
+        );
+        await chmod(claude, 0o755);
+        await chmod(join(bin, "git"), 0o755);
+
+        const result = await promisify(execFile)(
+            process.execPath,
+            [resolve("dist/index.js"), "run", "--", claude],
+            {
+                cwd: home,
+                env: {
+                    HOME: home,
+                    PATH: bin,
+                    AGENTIAM_TEST_OUTPUT: output,
+                },
+            },
+        ).catch((error) => error);
+
+        expect(result.code).toBe(126);
+        expect(result.stderr).toContain("Approval was skipped or unavailable");
+        expect(result.stderr).not.toContain("Approval request failed");
+        expect(await readFile(policyPath, "utf8")).toBe(policy);
+        await expect(readFile(output)).rejects.toMatchObject({
+            code: "ENOENT",
+        });
+    });
+
     it("configures the native Agent IAM MCP server for Codex", async () => {
         const bin = await mkdtemp(join(tmpdir(), "agentiam-run-bin-"));
         const output = join(bin, "args.txt");
