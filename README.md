@@ -1,8 +1,44 @@
 # Agent IAM
 
-Control what your coding agents can do with Git, GitHub CLI, AWS CLI, and supported GitHub MCP tools.
+Give your coding agents permission to do useful work without giving them permission to do everything your credentials allow.
 
-Agent IAM checks intercepted actions against your policy, blocks them by default, and records authorization attempts. Allow routine work, deny sensitive operations, and approve new capabilities as you need them.
+Agent IAM checks intercepted Git, GitHub CLI, AWS CLI, and supported GitHub MCP actions against your policy. It denies actions by default and records authorization attempts. Allow routine work, deny sensitive operations, and approve new capabilities as you need them.
+
+## The problem: access is broader than the task
+
+You ask an agent to investigate a GitHub issue, fix the code, and prepare a pull request. It needs to read issues, commit changes locally, and create a PR—but you still want to review before merging.
+
+The credentials available to the agent may also let it merge PRs or delete repositories. An instruction such as “don't merge” expresses your intent; Agent IAM checks intercepted actions against an explicit policy before they execute.
+
+For that workflow, you can allow issue reads, local commits, and PR creation while denying merges and repository deletion. The merge restriction should apply whether the agent uses `gh pr merge` or the equivalent GitHub MCP tool, without maintaining separate rules for each interface.
+
+## One capability, multiple interfaces
+
+Write policy for **what the agent can do**, not each command or protocol it might use. Agent IAM normalizes supported CLI commands and MCP tool calls into the same policy capability:
+
+| Action | GitHub CLI | GitHub MCP tool | Policy capability |
+| --- | --- | --- | --- |
+| Read an issue | `gh issue view 42 --repo acme/app` | `issue_read` with `method: "get"`, `owner: "acme"`, `repo: "app"`, `issue_number: 42` | `github.issue.view` |
+| Create a PR | `gh pr create --repo acme/app …` | `create_pull_request` | `github.pr.create` |
+| Merge a PR | `gh pr merge 123 --repo acme/app` | `merge_pull_request` | `github.pr.merge` |
+
+For example, this policy allows issue reads and PR creation in `acme/app`, permits local commits, and denies merges and repository deletion:
+
+```yaml
+allow:
+  github.issue.view:
+    repos: [acme/app]
+  github.pr.create:
+    repos: [acme/app]
+  git.commit: true
+deny:
+  github.pr.merge: true
+  github.repo.delete: true
+```
+
+The `github.issue.view` and `github.pr.create` rules apply to both supported GitHub interfaces, including the same repository restriction. The `github.pr.merge` deny blocks both intercepted merge paths. Other actions need their own allow rules; this is a focused policy example, not a complete development policy.
+
+CLI actions must pass through Agent IAM's wrappers, and MCP calls must pass through its [GitHub MCP proxy](docs/MCP.md). MCP support currently covers selected official GitHub tools over stdio—not arbitrary MCP servers or HTTP connections. See [security limits](#security-limits) for bypasses and boundaries.
 
 ## Install
 
