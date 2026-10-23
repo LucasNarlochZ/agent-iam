@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.2](https://github.com/LucasNarlochZ/agent-iam/compare/core-v0.4.1...core-v0.4.2) (2026-10-23)
+
+
+### Bug Fixes
+
+* quiet policy allows and reorganize tool registration ([320ce6e](https://github.com/LucasNarlochZ/agent-iam/commit/320ce6ec9f4189749847cbadae485ed39cad9e3e))
+* silence policy allows while preserving audit events ([dc5d5e0](https://github.com/LucasNarlochZ/agent-iam/commit/dc5d5e0ad815c40e859c40720e8ee2476f63b0be))
+
 ## [0.4.1](https://github.com/LucasNarlochZ/agent-iam/compare/core-v0.4.0...core-v0.4.1) (2026-10-22)
 
 
