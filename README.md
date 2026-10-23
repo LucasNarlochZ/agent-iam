@@ -9,7 +9,7 @@ Give your coding agents permission to do useful work without giving them permiss
 
 Agent IAM checks intercepted Git, GitHub CLI, AWS CLI, and supported GitHub MCP actions against your policy. It denies actions by default and records authorization attempts. Allow routine work, deny sensitive operations, and approve new capabilities as you need them.
 
-**Build permissions as you work—not by hand-editing YAML.** Initialize a policy, launch your agent, and approve supported CLI capabilities when they are needed. Agent IAM saves permanent decisions for you, with supported repository, branch, or staged-path restrictions. See [progressive permissions](#progressive-permissions).
+**Build permissions as you work—not by hand-editing YAML.** Initialize a policy, launch your agent, and approve supported CLI and GitHub MCP capabilities when they are needed. Agent IAM saves permanent decisions for you, with supported repository, branch, or staged-path restrictions. See [progressive permissions](#progressive-permissions).
 
 ## The problem: access is broader than the task
 
@@ -110,15 +110,15 @@ agentiam run -- gh issue list
 
 ## Progressive permissions
 
-You do not need to anticipate every capability or edit YAML each time your agent needs a new permission. For supported CLI actions with no matching allow rule, Agent IAM can ask in your terminal or supported native agent interface:
+You do not need to anticipate every capability or edit YAML each time your agent needs a new permission. For supported actions with no matching allow rule, Agent IAM can ask through your terminal or supported native agent interface for CLI commands, or through MCP form elicitation for intercepted GitHub MCP calls:
 
 1. Choose **Allow permanently**, **Allow once**, **Deny permanently**, or **Skip**.
 2. For permanent decisions, choose a supported scope, such as the current repository, branch, or staged paths.
 3. Choose the global or local policy when a policy exists in the command's current directory. Agent IAM writes the rule for you.
 
-**Allow once** runs that invocation without saving a rule. After saving a permanent allow, retry the command; subsequent matching actions use the saved permission.
+**Allow once** runs that invocation without saving a rule. After saving a permanent allow, retry the command or MCP call; subsequent matching actions use the saved permission.
 
-Explicit denies never prompt and cannot be overridden by approval. GitHub MCP calls do not prompt either: configure their rules beforehand. Invalid policies, unsupported capabilities, and unavailable approval channels remain denied. See [approvals](docs/POLICIES.md#interactive-approvals) for requirements and details.
+Explicit denies never prompt and cannot be overridden by approval. MCP approvals require a client that supports form elicitation; otherwise, configure rules beforehand. Invalid policies, unsupported capabilities, and unavailable approval channels remain denied. See [approvals](docs/POLICIES.md#interactive-approvals) for requirements and details.
 
 ## Your policy, your permissions
 

@@ -30,6 +30,7 @@
 
 ### Added
 
+- Add interactive approvals for intercepted GitHub MCP calls through clients supporting form elicitation, with repository scopes, global/local policy destinations, audited allow-once execution, and retry-required permanent allows
 - Add `agentiam init --local` to initialize a policy in the current directory without overwriting an existing policy
 - Add action-scope and global/local policy choices for permanent approvals, including scoped deny rules
 - Add `agentiam --version` to print the installed package version

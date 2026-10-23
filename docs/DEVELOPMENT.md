@@ -28,6 +28,8 @@ When adding a capability, update the [command reference](CAPABILITIES.md) and te
 
 Tests use temporary homes and fake binaries so they do not modify a developer's real Agent IAM configuration.
 
+The MCP proxy suite uses SDK clients connected to the built proxy over stdio. It covers form elicitation, scoped global/local policy persistence, allow-once execution, retries, cancellation, concurrent approvals, and fail-closed policy and audit errors. These protocol tests do not exercise each coding agent's MCP approval UI.
+
 ## Fast local tests
 
 `npm test` builds Agent IAM and runs unit and integration tests, excluding the real Claude Code, Codex, and OpenCode suites. It uses installed project dependencies and requires no Docker daemon or installed coding harnesses. Test filters are forwarded to Vitest:

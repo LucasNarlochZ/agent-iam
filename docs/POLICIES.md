@@ -54,12 +54,12 @@ An invalid directory policy fails closed and denies the action.
 
 ## Interactive approvals
 
-When a supported CLI capability has no matching allow rule, Agent IAM can prompt for approval. Use the arrow keys to select an option and Enter to confirm. Escape or Ctrl+C selects **Skip**.
+When a supported capability has no matching allow rule, Agent IAM can prompt for approval. CLI commands use a terminal or native approval bridge; intercepted GitHub MCP calls use the MCP client's form elicitation interface. In the terminal, use the arrow keys to select an option and Enter to confirm. Escape or Ctrl+C selects **Skip**.
 
 Approval takes at most three questions. The first offers:
 
 - **Allow permanently**: save an allow rule after choosing its scope and destination.
-- **Allow once**: run the denied command without changing policy or asking further questions.
+- **Allow once**: run the denied command or MCP call without changing policy or asking further questions.
 - **Deny permanently**: save a deny rule after choosing its scope and destination.
 - **Skip**: leave policy unchanged and keep the command denied.
 
@@ -67,9 +67,9 @@ For permanent decisions, the second question offers all contexts of the action o
 
 If the command's current directory contains `.agentiam/policy.yaml`, the final question offers the global and local policies, showing each full path. Otherwise, rules are saved to `~/.agentiam/policy.yaml` without a destination question. Ancestor-directory policies are not offered as local destinations. Cancelling any question leaves policy unchanged.
 
-Local allow rules can grant missing global permissions, but cannot override matching explicit denies in any applicable policy. Saving an allow rule does not execute the denied command; retry it to apply the change. **Allow once** is the exception: it permits that invocation without saving a rule.
+Local allow rules can grant missing global permissions, but cannot override matching explicit denies in any applicable policy. Saving an allow rule does not execute the denied command or MCP call; retry it to apply the change. **Allow once** is the exception: it permits that invocation without saving a rule.
 
-Existing explicit denies do not prompt. Unsupported capabilities, invalid policies, and audit failures deny without prompting. GitHub MCP tool calls also deny without interactive approval; configure their rules beforehand.
+Existing explicit denies do not prompt. Unsupported capabilities, invalid policies, and audit failures deny without prompting. GitHub MCP approvals require a client advertising form elicitation support; clients without it remain denied unless a policy rule already allows the call. MCP approval cancellation, timeout, persistence errors, or failed audit writes also leave the call denied. See [MCP approvals](MCP.md#interactive-approvals) for details.
 
 When running directly in a terminal, both stdin and stderr must be attached to a TTY. Wrapped agents can use a parent terminal or a native approval bridge. If neither is available, the action remains denied. See [agent integrations](INTEGRATIONS.md) for native-interface requirements.
 

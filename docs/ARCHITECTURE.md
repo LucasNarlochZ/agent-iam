@@ -56,13 +56,15 @@ Requests time out after five minutes. An expired request does not save a newly s
 
 The GitHub proxy connects the client and official upstream server over stdio. It exposes only supported tools, normalizes each call into a GitHub capability, reloads policy, and records authorization before forwarding an allowed call.
 
+For a missing allow or constraint mismatch, the proxy can send its own form elicitation requests to a supporting client. It reuses the CLI approval choices, scope controls, and policy persistence. Permanent allows require retry; allow-once approvals are audited before the original call is forwarded. Policy is rechecked after the user's decision, and explicit denies still win. Clients without form support, cancelled or expired requests, and persistence or audit failures remain denied. See [MCP approvals](MCP.md#interactive-approvals) for deadlines and client requirements.
+
 Denied calls return an MCP tool error without invoking the upstream tool. Tool discovery exposes supported tools regardless of current policy; resources, prompts, and upstream-initiated requests are not proxied. Policy enforcement is separate from transport construction, but HTTP transport is not exposed by the CLI.
 
 Successful authorization does not prove that GitHub completed an operation. Failed upstream calls are not retried because a failed response may follow a completed mutation. The upstream process closes when the client disconnects or the proxy receives SIGINT or SIGTERM. Server startup itself is not policy-gated; use a trusted official upstream server.
 
 ## Audit log
 
-Authorization attempts and CLI approval outcomes are appended to `~/.agentiam/audit.jsonl`. Use `agentiam inspect logs` to read them; see [audit logs](OBSERVABILITY.md) for options, reason codes, and event semantics. If a required audit entry cannot be written, the real command or upstream tool is not executed.
+Authorization attempts and CLI/MCP approval outcomes are appended to `~/.agentiam/audit.jsonl`. Use `agentiam inspect logs` to read them; see [audit logs](OBSERVABILITY.md) for options, reason codes, and event semantics. If a required audit entry cannot be written, the real command or upstream tool is not executed.
 
 With `agentiam run`, shims send records to the parent through a private file-based channel. The parent writes the log using its own environment and acknowledges the write before an allowed command can execute. Codex receives the channel path through its shell environment configuration, allowing sandboxed commands to log without write access to `~/.agentiam` or Unix-socket connections.
 
