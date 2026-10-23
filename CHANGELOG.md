@@ -30,6 +30,8 @@
 
 ### Added
 
+- Add `agentiam init --local` to initialize a policy in the current directory without overwriting an existing policy
+- Add action-scope and global/local policy choices for permanent approvals, including scoped deny rules
 - Add `agentiam --version` to print the installed package version
 - Add policy and approval coverage for common Git commands, including `add`, `checkout`, `fetch`, `pull`, `merge`, `rebase`, `reset`, `restore`, `stash`, and `worktree`
 - Add GitHub CLI capability coverage for issues, pull requests, repositories, Actions runs and workflows, releases, authentication, search, and gists without automatically granting permission
@@ -41,6 +43,8 @@
 
 ### Changed
 
+- Combine global and directory allow rules additively while preserving matching explicit denies in any applicable policy; narrower local allows no longer restrict broader grants
+- Split interactive approvals into decision, action scope, and policy destination questions; native OpenCode fallback approvals allow only one invocation without saving a rule
 - Replace `agentiam inspect` with `agentiam inspect policy`; bare `inspect` now displays subcommand usage, and policy inspection includes configured constraints
 - Keep existing-policy CLI allows silent while preserving audit records, denial explanations on stderr, and brief confirmations for approvals and saved policy changes
 - Compare GitHub repository constraints case-insensitively across CLI and MCP policies
