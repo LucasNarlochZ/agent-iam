@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.0](https://github.com/LucasNarlochZ/agent-iam/compare/core-v0.4.2...core-v0.5.0) (2026-10-23)
+
+
+### Features
+
+* add scoped approvals, local policy grants, and Git branch constraints ([689f75f](https://github.com/LucasNarlochZ/agent-iam/commit/689f75fd051468fde6f192d0abb80c88eab33b29))
+* constrain git add and commit by current branch ([8355ef0](https://github.com/LucasNarlochZ/agent-iam/commit/8355ef0d43fba4b9deb016338f5478d99b721811))
+* prompt for intercepted MCP capability approvals ([4357058](https://github.com/LucasNarlochZ/agent-iam/commit/43570582f2a9870c32202f32f67789ce75d5fb35))
+* split approvals into decision scope and policy questions ([0d49649](https://github.com/LucasNarlochZ/agent-iam/commit/0d49649735c74071990396426c506c67525fcc83))
+* support local policy initialization ([e7e6890](https://github.com/LucasNarlochZ/agent-iam/commit/e7e6890b6a48117844e99454e58e1db285a1484d))
+
+
+### Bug Fixes
+
+* allow directory policies to grant permissions ([a01a45f](https://github.com/LucasNarlochZ/agent-iam/commit/a01a45f7ff16a67c4e8d6003c897ee5d3c2adafb))
+
 ## [0.4.2](https://github.com/LucasNarlochZ/agent-iam/compare/core-v0.4.1...core-v0.4.2) (2026-10-23)
 
 
