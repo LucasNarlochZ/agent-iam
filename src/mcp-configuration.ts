@@ -1,4 +1,4 @@
-import { mcpTools } from "./tools.js";
+import { registry } from "./tools.js";
 
 export function proxyMcpCommand(
     command: readonly string[],
@@ -13,9 +13,9 @@ export function proxyMcpCommand(
     ) {
         return [...command];
     }
-    const match = Object.entries(mcpTools).find(([, tool]) =>
-        tool.matchesCommand(command),
-    );
+    const match = registry
+        .listMcp()
+        .find(([, tool]) => tool.matchesCommand(command));
     if (!match) return undefined;
     if (!node || !entrypoint) throw new Error("Missing Agent IAM MCP runtime");
     return [node, entrypoint, "mcp", match[0], "--", ...command];
@@ -34,7 +34,7 @@ export function mcpProxyEnvironment(
 }
 
 export function checkMcpUrl(url: string): void {
-    if (Object.values(mcpTools).some((tool) => tool.matchesUrl(url))) {
+    if (registry.listMcp().some(([, tool]) => tool.matchesUrl(url))) {
         throw new Error(
             "Agent IAM cannot proxy a registered MCP server over HTTP yet; configure its supported stdio command instead",
         );

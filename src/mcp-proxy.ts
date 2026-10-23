@@ -12,7 +12,7 @@ import { requestAuditWrite } from "./audit-broker.js";
 import { capability } from "./capability.js";
 import { evaluatePolicies } from "./policy/engine.js";
 import { loadPolicy, resolvePolicyPath, PolicyError } from "./policy/schema.js";
-import { mcpTools, type McpToolName, type McpAuditToolName } from "./tools.js";
+import { registry, type McpToolName, type McpAuditToolName } from "./tools.js";
 
 export interface McpProxyOptions {
     env?: NodeJS.ProcessEnv;
@@ -31,7 +31,7 @@ export function createMcpProxy(
     options: McpProxyOptions = {},
 ): Server {
     const env = options.env ?? process.env;
-    const tool = mcpTools[toolName];
+    const tool = registry.getMcp(toolName);
     const { adapter } = tool;
     const auditTool: McpAuditToolName = `${toolName}-mcp`;
     const server = new Server(

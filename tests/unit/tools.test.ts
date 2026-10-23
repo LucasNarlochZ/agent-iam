@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parsePolicy } from "../../src/policy/schema.js";
 import {
     capabilityDefinitionFor,
-    cliTools,
-    mcpTools,
+    registry,
     services,
 } from "../../src/tools.js";
 import {
@@ -14,13 +13,17 @@ import {
 
 describe("tool registry", () => {
     it("provides tool and capability metadata from one registry", async () => {
-        const { capabilityDefinitionFor, isToolName, toolNames, tools } =
+        const { capabilityDefinitionFor, isToolName } =
             await import("../../src/tools.js");
 
-        expect(toolNames).toEqual(["git", "gh", "aws"]);
+        expect(registry.listCli().map(([name]) => name)).toEqual([
+            "git",
+            "gh",
+            "aws",
+        ]);
         expect(isToolName("aws")).toBe(true);
         expect(isToolName("unknown")).toBe(false);
-        expect(tools.aws.service).toBe(services.aws);
+        expect(registry.getCli("aws").service).toBe(services.aws);
         expect(capabilityDefinitionFor("git.commit")).toMatchObject({
             constraints: ["paths"],
         });
@@ -32,15 +35,21 @@ describe("tool registry", () => {
     });
 
     it("shares the GitHub service between CLI and MCP tools", () => {
-        expect(cliTools.gh.service).toBe(services.github);
-        expect(mcpTools.github.service).toBe(services.github);
+        expect(registry.getCli("gh").service).toBe(services.github);
+        expect(registry.getMcp("github").service).toBe(services.github);
         expect(
-            cliTools.gh.service.capabilityDefinition("github.pr.merge"),
+            registry
+                .getCli("gh")
+                .service.capabilityDefinition("github.pr.merge"),
         ).toEqual({
             constraints: ["repos"],
         });
-        expect(cliTools.gh).not.toHaveProperty("capabilityDefinition");
-        expect(mcpTools.github).not.toHaveProperty("policyConstraints");
+        expect(registry.getCli("gh")).not.toHaveProperty(
+            "capabilityDefinition",
+        );
+        expect(registry.getMcp("github")).not.toHaveProperty(
+            "policyConstraints",
+        );
     });
 
     it.each([
@@ -48,15 +57,17 @@ describe("tool registry", () => {
         ["gh", "gh"],
         ["aws", "aws"],
     ] as const)("declares the executable for %s", (name, executable) => {
-        expect(cliTools[name].executable).toBe(executable);
+        expect(registry.getCli(name).executable).toBe(executable);
     });
 
     it.each(gitCommands)(
         "supports git %s in normalization and policies",
         async (command) => {
-            const normalized = await cliTools.git.adapter.normalize([command], {
-                PATH: "",
-            });
+            const normalized = await registry
+                .getCli("git")
+                .adapter.normalize([command], {
+                    PATH: "",
+                });
             expect(normalized.canonical).toBe(`git.${command}`);
             expect(capabilityDefinitionFor(normalized.canonical)).toBeDefined();
             expect(
@@ -74,10 +85,11 @@ describe("tool registry", () => {
     )(
         "supports gh %s %s in normalization and policies",
         async (group, command) => {
-            const normalized = await cliTools.gh.adapter.normalize(
-                [group, command, "--repo", "owner/repo"],
-                { PATH: "" },
-            );
+            const normalized = await registry
+                .getCli("gh")
+                .adapter.normalize([group, command, "--repo", "owner/repo"], {
+                    PATH: "",
+                });
             expect(normalized.canonical).toBe(`github.${group}.${command}`);
             expect(capabilityDefinitionFor(normalized.canonical)).toEqual({
                 constraints:

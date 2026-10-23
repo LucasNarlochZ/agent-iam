@@ -7,37 +7,21 @@ import {
     matchesGithubMcpCommand,
     matchesGithubMcpUrl,
 } from "./adapters/github-mcp.js";
-import type { Adapter, CliAdapter, McpAdapter } from "./adapters/interfaces.js";
+import { ToolRegistry } from "./registry/registry.js";
+import type {
+    CapabilityDefinition,
+    PolicyConstraintValue,
+    ServiceDefinition,
+} from "./registry/types.js";
 
-export interface CapabilityDefinition {
-    constraints: readonly string[];
-}
-
-export interface PolicyConstraintValue {
-    name: string;
-    values: string[];
-    label: string;
-}
-
-export interface ServiceDefinition {
-    service: string;
-    capabilityDefinition(canonical: string): CapabilityDefinition | undefined;
-    policyConstraints(capability: CanonicalCapability): PolicyConstraintValue[];
-}
-
-export interface Tool<A extends Adapter<unknown>> {
-    service: ServiceDefinition;
-    adapter: A;
-}
-
-export interface CliTool extends Tool<CliAdapter> {
-    executable: string;
-}
-
-export interface McpTool extends Tool<McpAdapter> {
-    matchesCommand(command: readonly string[]): boolean;
-    matchesUrl(url: string): boolean;
-}
+export type {
+    CapabilityDefinition,
+    PolicyConstraintValue,
+    ServiceDefinition,
+    Tool,
+    CliTool,
+    McpTool,
+} from "./registry/types.js";
 
 type ConstraintReader = (
     capability: CanonicalCapability,
@@ -243,70 +227,60 @@ export const services = {
     },
 } satisfies Record<string, ServiceDefinition>;
 
-export const cliTools = {
-    git: {
-        service: services.git,
-        adapter: new GitCliAdapter(),
-        executable: "git",
-    },
-    gh: {
-        service: services.github,
-        adapter: new GithubCliAdapter(),
-        executable: "gh",
-    },
-    aws: {
-        service: services.aws,
-        adapter: new AwsCliAdapter(),
-        executable: "aws",
-    },
-} satisfies Record<string, CliTool>;
+export const registry = new ToolRegistry();
 
-export const mcpTools = {
-    github: {
-        service: services.github,
-        adapter: new GithubMcpAdapter(),
-        matchesCommand: matchesGithubMcpCommand,
-        matchesUrl: matchesGithubMcpUrl,
-    },
-} satisfies Record<string, McpTool>;
+for (const service of Object.values(services)) {
+    registry.registerService(service);
+}
 
-export type McpToolName = keyof typeof mcpTools;
+registry.registerCli("git", {
+    service: services.git,
+    adapter: new GitCliAdapter(),
+    executable: "git",
+});
+registry.registerCli("gh", {
+    service: services.github,
+    adapter: new GithubCliAdapter(),
+    executable: "gh",
+});
+registry.registerCli("aws", {
+    service: services.aws,
+    adapter: new AwsCliAdapter(),
+    executable: "aws",
+});
+
+registry.registerMcp("github", {
+    service: services.github,
+    adapter: new GithubMcpAdapter(),
+    matchesCommand: matchesGithubMcpCommand,
+    matchesUrl: matchesGithubMcpUrl,
+});
+
+export type McpToolName = string;
 export type McpAuditToolName = `${McpToolName}-mcp`;
 
 export function isMcpToolName(value: string | undefined): value is McpToolName {
-    return value !== undefined && Object.hasOwn(mcpTools, value);
+    return value !== undefined && registry.hasMcp(value);
 }
 
 export function isMcpAuditToolName(value: string): value is McpAuditToolName {
-    return Object.keys(mcpTools).some((name) => value === `${name}-mcp`);
+    return value.endsWith("-mcp") && registry.hasMcp(value.slice(0, -4));
 }
 
-export const tools = cliTools;
-
-export type ToolName = keyof typeof cliTools;
-
-export const toolNames = Object.keys(cliTools) as ToolName[];
+export type ToolName = string;
 
 export function isToolName(value: string | undefined): value is ToolName {
-    return value !== undefined && Object.hasOwn(cliTools, value);
+    return value !== undefined && registry.hasCli(value);
 }
 
 export function capabilityDefinitionFor(
     canonical: string,
 ): CapabilityDefinition | undefined {
-    for (const service of Object.values(services)) {
-        const definition = service.capabilityDefinition(canonical);
-        if (definition) return definition;
-    }
-    return undefined;
+    return registry.capabilityDefinitionFor(canonical);
 }
 
 export function serviceForCapability(
     capability: CanonicalCapability,
 ): ServiceDefinition | undefined {
-    return Object.values(services).find(
-        (service) =>
-            service.service === capability.service &&
-            service.capabilityDefinition(capability.canonical) !== undefined,
-    );
+    return registry.serviceForCapability(capability);
 }

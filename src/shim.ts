@@ -14,7 +14,7 @@ import {
     type ApprovalChoice,
 } from "./approval.js";
 import type { CanonicalCapability } from "./capability.js";
-import { cliTools, type ToolName } from "./tools.js";
+import { registry, type ToolName } from "./tools.js";
 import {
     requestBrokerApproval,
     requestFileApproval,
@@ -40,7 +40,7 @@ function write(
 }
 
 export async function runShim(options: ShimOptions): Promise<number> {
-    const tool = cliTools[options.tool];
+    const tool = registry.getCli(options.tool);
     const capability = await tool.adapter.normalize(options.args, options.env);
 
     let policyPath = resolvePolicyPath(options.env);

@@ -8,7 +8,7 @@ import {
     capabilityDefinitionFor,
     isMcpAuditToolName,
     isMcpToolName,
-    mcpTools,
+    registry,
 } from "../../src/tools.js";
 
 const adapter = new GithubMcpAdapter();
@@ -61,7 +61,9 @@ describe("GitHub MCP normalization", () => {
                 constraints: ["repos"],
             });
             expect(
-                mcpTools.github.service.policyConstraints(normalized!),
+                registry
+                    .getMcp("github")
+                    .service.policyConstraints(normalized!),
             ).toEqual([
                 {
                     name: "repos",
@@ -283,10 +285,14 @@ describe("GitHub MCP URL recognition", () => {
 
 describe("GitHub MCP registry", () => {
     it("registers the adapter and transport recognizers", () => {
-        expect(mcpTools.github.adapter).toBeInstanceOf(GithubMcpAdapter);
-        expect(mcpTools.github.service.service).toBe("github");
-        expect(mcpTools.github.matchesCommand).toBe(matchesGithubMcpCommand);
-        expect(mcpTools.github.matchesUrl).toBe(matchesGithubMcpUrl);
+        expect(registry.getMcp("github").adapter).toBeInstanceOf(
+            GithubMcpAdapter,
+        );
+        expect(registry.getMcp("github").service.service).toBe("github");
+        expect(registry.getMcp("github").matchesCommand).toBe(
+            matchesGithubMcpCommand,
+        );
+        expect(registry.getMcp("github").matchesUrl).toBe(matchesGithubMcpUrl);
         expect(isMcpToolName("github")).toBe(true);
         expect(isMcpAuditToolName("github-mcp")).toBe(true);
     });
