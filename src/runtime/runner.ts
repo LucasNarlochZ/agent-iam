@@ -9,7 +9,11 @@ import {
     startApprovalBroker,
     startFileApprovalBroker,
 } from "../approvals/approval-broker.js";
-import { requestApproval, type ApprovalChoice } from "../approvals/approval.js";
+import {
+    requestApproval,
+    type ApprovalDecision,
+    type ApprovalContext,
+} from "../approvals/approval.js";
 import type { CanonicalCapability } from "../capability.js";
 import { createShellEnvironment } from "./shell-environment.js";
 import { getHarnessAdapter } from "../harnesses/index.js";
@@ -27,7 +31,7 @@ export interface RunnerOptions {
     cwd?: string;
     approvalPrompt?: (
         capability: CanonicalCapability,
-    ) => Promise<ApprovalChoice>;
+    ) => Promise<ApprovalDecision>;
 }
 
 const execFileAsync = promisify(execFile);
@@ -94,12 +98,14 @@ export async function runWithShims(
         Boolean(process.stdin.isTTY && process.stderr.isTTY);
     const promptForApproval = async (
         capability: CanonicalCapability,
-    ): Promise<ApprovalChoice> => {
+        context?: ApprovalContext,
+    ): Promise<ApprovalDecision> => {
         if (nativeApproval) {
             try {
                 return await requestBrokerApproval(
                     nativeApprovalSocket,
                     capability,
+                    context,
                 );
             } catch (error) {
                 const code = (error as NodeJS.ErrnoException).code;
@@ -110,9 +116,13 @@ export async function runWithShims(
         const running = child?.exitCode === null;
         if (running) child?.kill("SIGSTOP");
         try {
-            return await (options.approvalPrompt ?? requestApproval)(
-                capability,
-            );
+            return options.approvalPrompt
+                ? await options.approvalPrompt(capability)
+                : await requestApproval(capability, {
+                      context,
+                      env: baseEnv,
+                      cwd: options.cwd,
+                  });
         } finally {
             if (running) child?.kill("SIGCONT");
         }

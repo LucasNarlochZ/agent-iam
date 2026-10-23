@@ -52,15 +52,18 @@ An invalid directory policy fails closed and denies the action.
 
 When a supported CLI capability has no matching allow rule, Agent IAM can prompt for approval. Use the arrow keys to select an option and Enter to confirm. Escape or Ctrl+C selects **Skip**.
 
-Depending on the available context and agent interface, choices include:
+Approval takes at most three questions. The first offers:
 
-- **Allow this capability**: save an unrestricted allow rule.
-- **Allow for this context**: save an allow rule for the current repository, branch, or staged paths.
-- **Allow once**: run the denied command without changing policy, when offered by the interface.
-- **Explicitly deny**: save a deny rule.
+- **Allow permanently**: save an allow rule after choosing its scope and destination.
+- **Allow once**: run the denied command without changing policy or asking further questions.
+- **Deny permanently**: save a deny rule after choosing its scope and destination.
 - **Skip**: leave policy unchanged and keep the command denied.
 
-Persistent choices update `~/.agentiam/policy.yaml`. Saving an allow rule does not execute the denied command; retry it to apply the change. **Allow once** is the exception: it permits that invocation without saving a rule.
+For permanent decisions, the second question offers all contexts of the action or a supported restriction, such as the current repository, branch, or staged paths. Actions without available scope controls skip this question.
+
+If the command's current directory contains `.agentiam/policy.yaml`, the final question offers the global and local policies, showing each full path. Otherwise, rules are saved to `~/.agentiam/policy.yaml` without a destination question. Ancestor-directory policies are not offered as local destinations. Cancelling any question leaves policy unchanged.
+
+Local policies can restrict global permissions, not override global denials or grant missing global permissions. Saving an allow rule does not execute the denied command; retry it to apply the change. **Allow once** is the exception: it permits that invocation without saving a rule.
 
 Existing explicit denies do not prompt. Unsupported capabilities, invalid policies, and audit failures deny without prompting. GitHub MCP tool calls also deny without interactive approval; configure their rules beforehand.
 

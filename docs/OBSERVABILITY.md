@@ -68,7 +68,7 @@ Policy-loading failures may have no scope because evaluation did not complete. E
 | `policy_error`                             | Policy loading or evaluation failed.                                        |
 | `allow_once`                               | The user allowed this invocation without changing policy.                   |
 | `approval_allow`, `approval_allow_context` | An allow rule was saved; the invocation remains denied and must be retried. |
-| `approval_deny`                            | The user saved an explicit deny rule.                                       |
+| `approval_deny`, `approval_deny_context`   | The user saved an unrestricted or scoped explicit deny rule.                |
 | `approval_skip`                            | Approval was skipped or unavailable; the action remains denied.             |
 | `approval_error`                           | A selected policy change could not be saved; the action remains denied.     |
 | `execution_error`                          | The CLI executable could not be resolved or started.                        |

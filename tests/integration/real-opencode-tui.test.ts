@@ -131,7 +131,7 @@ describe.skipIf(!opencode || process.platform !== "linux")(
                         await terminal.waitFor(
                             "Agent IAM approval: aws.sts.get-caller-identity",
                         );
-                        await terminal.waitFor("Allow this capability");
+                        await terminal.waitFor("Allow permanently");
                         expect(await readFile(policy, "utf8")).toBe(
                             initialPolicy,
                         );

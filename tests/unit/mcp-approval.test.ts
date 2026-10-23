@@ -3,7 +3,7 @@ import { requestMcpApproval } from "../../src/mcp/mcp-approval.js";
 
 describe("MCP approval", () => {
     it("requests a native choice and returns the selected approval", async () => {
-        let request: unknown;
+        const requests: unknown[] = [];
 
         const choice = await requestMcpApproval(
             {
@@ -13,16 +13,19 @@ describe("MCP approval", () => {
                 constraints: { repository: "owner/repo" },
             },
             async (input) => {
-                request = input;
+                requests.push(input);
                 return {
                     action: "accept",
-                    content: { choice: "allow-context" },
+                    content: {
+                        choice: requests.length === 1 ? "allow" : "repos",
+                    },
                 };
             },
         );
 
-        expect(choice).toBe("allow-context");
-        expect(request).toEqual({
+        expect(choice).toEqual({ choice: "allow-context", scope: ["repos"] });
+        expect(requests).toHaveLength(2);
+        expect(requests[0]).toEqual({
             mode: "form",
             message: "[agentiam] github.pr.merge was denied.",
             requestedSchema: {
@@ -34,14 +37,10 @@ describe("MCP approval", () => {
                         oneOf: [
                             {
                                 const: "allow",
-                                title: "Allow this capability",
-                            },
-                            {
-                                const: "allow-context",
-                                title: "Allow for repository owner/repo",
+                                title: "Allow permanently",
                             },
                             { const: "allow-once", title: "Allow once" },
-                            { const: "deny", title: "Explicitly deny" },
+                            { const: "deny", title: "Deny permanently" },
                             { const: "skip", title: "Skip" },
                         ],
                     },
