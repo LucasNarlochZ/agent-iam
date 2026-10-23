@@ -166,7 +166,8 @@ describe.skipIf(!codex || process.platform !== "linux")(
                     );
                     if (choice === "allow") {
                         await expect(retry).resolves.toMatchObject({
-                            stderr: expect.stringContaining("[agentiam] ALLOW"),
+                            stdout: "",
+                            stderr: "",
                         });
                         expect(await readFile(marker, "utf8")).toBe("executed");
                     } else {

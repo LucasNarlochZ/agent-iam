@@ -100,9 +100,15 @@ describe.skipIf(!codex || process.platform === "win32")("real Codex", () => {
                         item.call_id === "agentiam-shell-call",
                 );
                 expect(toolOutput).toBeDefined();
-                expect(JSON.stringify(toolOutput)).toContain(
-                    `[agentiam] ${decision} git.push`,
-                );
+                if (decision === "ALLOW") {
+                    expect(JSON.stringify(toolOutput)).not.toContain(
+                        "[agentiam]",
+                    );
+                } else {
+                    expect(JSON.stringify(toolOutput)).toContain(
+                        "[agentiam] DENY git.push",
+                    );
+                }
                 expect(JSON.stringify(toolOutput)).toMatch(
                     decision === "ALLOW"
                         ? /(?:exited with code|exit_code[\\\"]*[: ]+)\s*0/

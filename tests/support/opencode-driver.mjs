@@ -124,8 +124,11 @@ try {
             join(process.env.HOME, "result.json"),
             "utf8",
         );
-        if (!retry.includes("[agentiam] ALLOW git.push"))
-            throw new Error(`Retry was not allowed: ${retry}`);
+        if (
+            JSON.parse(retry).metadata?.exit !== 0 ||
+            retry.includes("[agentiam]")
+        )
+            throw new Error(`Retry did not succeed silently: ${retry}`);
     }
     console.log(`Native OpenCode approval handled: ${decision}`);
 } finally {
