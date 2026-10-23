@@ -1,8 +1,15 @@
 # Agent IAM
 
+[![npm version](https://img.shields.io/npm/v/%40agentiam-dev%2Fcore)](https://www.npmjs.com/package/@agentiam-dev/core)
+[![CI](https://github.com/LucasNarlochZ/agent-iam/actions/workflows/ci.yml/badge.svg?event=pull_request)](https://github.com/LucasNarlochZ/agent-iam/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node.js: >=20](https://img.shields.io/badge/Node.js-%3E%3D20-339933)](https://nodejs.org/)
+
 Give your coding agents permission to do useful work without giving them permission to do everything your credentials allow.
 
 Agent IAM checks intercepted Git, GitHub CLI, AWS CLI, and supported GitHub MCP actions against your policy. It denies actions by default and records authorization attempts. Allow routine work, deny sensitive operations, and approve new capabilities as you need them.
+
+**Build permissions as you work—not by hand-editing YAML.** Initialize a policy, launch your agent, and approve supported CLI capabilities when they are needed. Agent IAM saves permanent decisions for you, with supported repository, branch, or staged-path restrictions. See [progressive permissions](#progressive-permissions).
 
 ## The problem: access is broader than the task
 
@@ -39,6 +46,20 @@ deny:
 The `github.issue.view` and `github.pr.create` rules apply to both supported GitHub interfaces, including the same repository restriction. The `github.pr.merge` deny blocks both intercepted merge paths. Other actions need their own allow rules; this is a focused policy example, not a complete development policy.
 
 CLI actions must pass through Agent IAM's wrappers, and MCP calls must pass through its [GitHub MCP proxy](docs/MCP.md). MCP support currently covers selected official GitHub tools over stdio—not arbitrary MCP servers or HTTP connections. See [security limits](#security-limits) for bypasses and boundaries.
+
+## Why add Agent IAM to native permissions?
+
+Codex, Claude Code, and OpenCode already provide permission controls and interactive approvals. Agent IAM complements those controls with a shared, capability-based policy for supported service actions:
+
+| Native system | What it provides | What Agent IAM adds |
+| --- | --- | --- |
+| [Codex](https://developers.openai.com/codex/agent-approvals-security) | Sandbox boundaries, approval policies, and command-prefix execution rules. | Service capabilities such as `github.pr.merge`, with supported context restrictions, reusable outside Codex. |
+| [Claude Code](https://code.claude.com/docs/en/permissions) | Tool permissions, Bash command patterns, MCP tool rules, and approval modes. | One capability rule for equivalent supported CLI and GitHub MCP actions, rather than separate rules for each tool interface. |
+| [OpenCode](https://opencode.ai/v2/docs/permissions) | Tool/action and resource rules, shell command patterns, and saved project approvals. | A policy shared with Codex and Claude Code, plus supported repository, branch, and staged-path constraints on normalized capabilities. |
+
+The advantage is **portable service permissions**, not simply fewer prompts: keep the same Agent IAM policy when switching agents, approve capabilities progressively, and inspect authorization decisions in one audit log. For example, a `github.pr.merge` deny applies to both intercepted `gh pr merge` commands and supported GitHub MCP merge calls.
+
+Keep native permissions and sandboxing enabled where available. Agent IAM does not replace filesystem or network isolation, cover every native tool, or prevent [bypasses outside interception](#security-limits).
 
 ## Install
 
@@ -87,11 +108,21 @@ You can also wrap a single command:
 agentiam run -- gh issue list
 ```
 
-For supported CLI actions with no matching allow rule, Agent IAM can ask for approval in your terminal or agent interface. Saving an allow rule requires retrying the command; explicit denies never prompt. See [approvals](docs/POLICIES.md#interactive-approvals) for details.
+## Progressive permissions
+
+You do not need to anticipate every capability or edit YAML each time your agent needs a new permission. For supported CLI actions with no matching allow rule, Agent IAM can ask in your terminal or supported native agent interface:
+
+1. Choose **Allow permanently**, **Allow once**, **Deny permanently**, or **Skip**.
+2. For permanent decisions, choose a supported scope, such as the current repository, branch, or staged paths.
+3. Choose the global or local policy when a policy exists in the command's current directory. Agent IAM writes the rule for you.
+
+**Allow once** runs that invocation without saving a rule. After saving a permanent allow, retry the command; subsequent matching actions use the saved permission.
+
+Explicit denies never prompt and cannot be overridden by approval. GitHub MCP calls do not prompt either: configure their rules beforehand. Invalid policies, unsupported capabilities, and unavailable approval channels remain denied. See [approvals](docs/POLICIES.md#interactive-approvals) for requirements and details.
 
 ## Your policy, your permissions
 
-Edit `~/.agentiam/policy.yaml` to choose what is allowed:
+Policies remain readable YAML, so you can review saved decisions or edit `~/.agentiam/policy.yaml` directly when you want to:
 
 ```yaml
 allow:
@@ -122,6 +153,21 @@ agentiam inspect logs --head 5 --json
 ```
 
 See [audit logs](docs/OBSERVABILITY.md) for output formats and approval events.
+
+## Automated tests and real-harness integration
+
+Agent IAM has automated unit and integration tests for policy evaluation, command normalization, approvals, and audit records. Integration suites also run **real Codex, Claude Code, and OpenCode CLIs**, not just mocked harness interfaces.
+
+From a repository checkout with dependencies installed:
+
+```bash
+npm test                 # Build and run unit/integration tests without real harnesses
+npm run test:isolated    # Complete suite, including real harnesses, in Docker
+```
+
+CI runs formatting, typechecking, build checks, and the isolated suite. The Docker image pins harness versions; tests run with external networking disabled, temporary configuration, scripted local servers, and fake service executables—no live model inference or API credentials. On Linux, Codex tests also answer its real terminal approval dialogs and verify saved rules, retries, and audit events. Claude Code coverage does not exercise interactive approval dialogs.
+
+The isolated suite requires a running Docker daemon and network access to provision the image. See the [development guide](docs/DEVELOPMENT.md#isolated-tests) for prerequisites, coverage limits, and commands to test locally installed harness versions.
 
 ## Documentation
 
