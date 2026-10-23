@@ -42,12 +42,13 @@
 ### Changed
 
 - Replace `agentiam inspect` with `agentiam inspect policy`; bare `inspect` now displays subcommand usage, and policy inspection includes configured constraints
-- Include authorization explanations in CLI allow and deny messages, with expected and actual context for constraint mismatches
+- Keep existing-policy CLI allows silent while preserving audit records, denial explanations on stderr, and brief confirmations for approvals and saved policy changes
 - Compare GitHub repository constraints case-insensitively across CLI and MCP policies
 - Reorganize the README around installation and quick start, moving architecture, policy rules, command coverage, integrations, MCP setup, observability, and development details into focused guides under `docs/`
 
 ### Fixed
 
+- Report CLI normalization and executable startup errors on stderr and record error audit events when possible
 - Treat missing or unavailable native approval sockets as skipped approvals without logging a broker failure, while keeping commands denied
 - Record an `ALLOW` approval event before executing a one-time-approved command instead of leaving only its initial denial in the audit trail
 - Distinguish unsupported commands from missing permissions so denied actions explain why policy approval is unavailable
