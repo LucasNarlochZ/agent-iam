@@ -348,9 +348,7 @@ describe("command shim", () => {
         });
 
         expect(code).toBe(126);
-        expect(await readFile(output, "utf8")).toBe(
-            "diff\n--cached\n--name-only\n-z\n",
-        );
+        expect(await readFile(output, "utf8")).toBe("branch\n--show-current\n");
     });
 
     it("does not let a directory policy override a global deny", async () => {

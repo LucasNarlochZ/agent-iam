@@ -31,6 +31,28 @@ An explicit deny always wins over an allow. Unmatched capabilities are denied. C
 
 Use `true` for a capability-wide rule. Contextual rules can constrain supported capabilities by repository, current branch, or staged paths. See [supported commands](CAPABILITIES.md) for where each constraint is available. GitHub repository constraints are compared case-insensitively across CLI and MCP calls.
 
+## Git branch constraints
+
+Use `branches` to restrict `git.add` and `git.commit` to named branches:
+
+```yaml
+allow:
+    git.add:
+        branches: [feature/work]
+    git.commit:
+        branches: [feature/work]
+```
+
+This example does not allow these actions on other branches or when branch detection fails. A separate capability-wide allow can still grant permission. To block commits on protected branches regardless of other allows, use an explicit deny:
+
+```yaml
+deny:
+    git.commit:
+        branches: [main, master]
+```
+
+Branch names are matched exactly, not as glob patterns. These constraints use the current branch, not a push destination. For `git.commit`, a rule may include both `branches` and `paths`; both must match.
+
 ## Directory policies
 
 Agent IAM also reads `.agentiam/policy.yaml` from the current directory and each parent directory. Rules from all applicable policies are evaluated together:

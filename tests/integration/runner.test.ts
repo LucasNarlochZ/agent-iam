@@ -21,7 +21,7 @@ describe("shim runner", () => {
         await writeFile(localPath, "allow: {}\ndeny: {}\n");
         await writeFile(
             join(bin, "git"),
-            '#!/bin/sh\nprintf executed > "$AGENTIAM_TEST_OUTPUT"\n',
+            '#!/bin/sh\nif [ "$1" = "branch" ]; then printf "feature/work\\n"; exit 0; fi\nprintf executed > "$AGENTIAM_TEST_OUTPUT"\n',
         );
         await chmod(join(bin, "git"), 0o755);
         const agent = join(bin, "agent");

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { GitCliAdapter } from "../../src/adapters/git.js";
 import { parsePolicy } from "../../src/policy/schema.js";
 import { compilePolicy, escapePrologAtom } from "../../src/policy/compiler.js";
 import {
@@ -47,8 +48,10 @@ describe("policy schema", () => {
             parsePolicy("allow:\n  github.pr.unknown: true\n"),
         ).toThrow("Unknown capability 'github.pr.unknown'");
         expect(() =>
-            parsePolicy("allow:\n  git.commit:\n    branches:\n      - main\n"),
-        ).toThrow("Unknown constraint 'branches' for 'git.commit'");
+            parsePolicy(
+                "allow:\n  git.commit:\n    repos:\n      - owner/repo\n",
+            ),
+        ).toThrow("Unknown constraint 'repos' for 'git.commit'");
         expect(() =>
             parsePolicy("allow:\n  git.commit:\n    paths: src/**\n"),
         ).toThrow(
@@ -357,6 +360,71 @@ describe("policy engine", () => {
             decision: "DENY",
             reason: "no matching allow rule",
         });
+    });
+
+    it.each(["add", "commit"])(
+        "enforces branch allow rules for git %s",
+        async (action) => {
+            const policy = parsePolicy(
+                `allow:\n  git.${action}:\n    branches: [feature/work]\n`,
+            );
+            for (const branch of ["feature/work", "main", undefined]) {
+                const command = await new GitCliAdapter(
+                    async () => [],
+                    async () => branch,
+                ).normalize([action]);
+                expect((await evaluatePolicy(policy, command)).decision).toBe(
+                    branch === "feature/work" ? "ALLOW" : "DENY",
+                );
+            }
+        },
+    );
+
+    it.each(["add", "commit"])(
+        "enforces branch deny rules for git %s",
+        async (action) => {
+            const policy = parsePolicy(
+                `allow:\n  git.${action}: true\ndeny:\n  git.${action}:\n    branches: [main]\n`,
+            );
+            for (const branch of ["main", "feature/work"]) {
+                expect(
+                    (
+                        await evaluatePolicy(policy, {
+                            service: "git",
+                            action,
+                            canonical: `git.${action}`,
+                            constraints: { branches: [branch] },
+                        })
+                    ).decision,
+                ).toBe(branch === "main" ? "DENY" : "ALLOW");
+            }
+        },
+    );
+
+    it("requires both commit branch and path constraints to match", async () => {
+        const policy = parsePolicy(
+            "allow:\n  git.commit:\n    branches: [feature/work]\n    paths: [safe.txt]\n",
+        );
+        for (const [branch, path] of [
+            ["feature/work", "safe.txt"],
+            ["main", "safe.txt"],
+            ["feature/work", "other.txt"],
+        ]) {
+            expect(
+                (
+                    await evaluatePolicy(policy, {
+                        service: "git",
+                        action: "commit",
+                        canonical: "git.commit",
+                        constraints: { branches: [branch!], paths: [path!] },
+                    })
+                ).decision,
+            ).toBe(
+                branch === "feature/work" && path === "safe.txt"
+                    ? "ALLOW"
+                    : "DENY",
+            );
+        }
     });
 
     it("requires every Git path constraint to match the policy", async () => {

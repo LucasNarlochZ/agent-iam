@@ -21,9 +21,17 @@ async function gitOutput(
     return captureOutput(executable, args, env);
 }
 
-async function stagedPaths(env: NodeJS.ProcessEnv): Promise<string[]> {
+async function stagedPaths(
+    env: NodeJS.ProcessEnv,
+    options: string[] = [],
+): Promise<string[]> {
     try {
-        return (await gitOutput(["diff", "--cached", "--name-only", "-z"], env))
+        return (
+            await gitOutput(
+                [...options, "diff", "--cached", "--name-only", "-z"],
+                env,
+            )
+        )
             .split("\0")
             .filter(Boolean);
     } catch {
@@ -33,11 +41,13 @@ async function stagedPaths(env: NodeJS.ProcessEnv): Promise<string[]> {
 
 async function currentBranch(
     env: NodeJS.ProcessEnv,
+    options: string[] = [],
 ): Promise<string | undefined> {
     try {
         return (
-            (await gitOutput(["branch", "--show-current"], env)).trim() ||
-            undefined
+            (
+                await gitOutput([...options, "branch", "--show-current"], env)
+            ).trim() || undefined
         );
     } catch {
         return undefined;
@@ -76,16 +86,22 @@ export class GitCliAdapter implements CliAdapter {
                 continue;
             }
             const command = capability("git", token);
-            if (command.canonical === "git.commit") {
-                const paths = await this.readStagedPaths(env);
-                return paths.length > 0
-                    ? { ...command, constraints: { paths } }
-                    : command;
-            }
-            if (command.canonical === "git.push") {
-                const branch = await this.readCurrentBranch(env);
-                return branch
-                    ? { ...command, constraints: { branches: [branch] } }
+            if (
+                ["git.add", "git.commit", "git.push"].includes(
+                    command.canonical,
+                )
+            ) {
+                const options = args.slice(0, index);
+                const constraints: { paths?: string[]; branches?: string[] } =
+                    {};
+                if (command.canonical === "git.commit") {
+                    const paths = await this.readStagedPaths(env, options);
+                    if (paths.length > 0) constraints.paths = paths;
+                }
+                const branch = await this.readCurrentBranch(env, options);
+                if (branch) constraints.branches = [branch];
+                return Object.keys(constraints).length > 0
+                    ? { ...command, constraints }
                     : command;
             }
             return command;
