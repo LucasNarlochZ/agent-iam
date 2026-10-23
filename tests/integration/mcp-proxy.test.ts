@@ -13,7 +13,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { afterEach, describe, expect, it } from "vitest";
+import {
+    ElicitRequestSchema,
+    type ElicitRequest,
+    type ElicitResult,
+} from "@modelcontextprotocol/sdk/types.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { runWithShims } from "../../src/runtime/runner.js";
 
 const directories: string[] = [];
@@ -33,6 +38,7 @@ afterEach(async () => {
 async function setup(
     policy = "allow:\n  github.file.read:\n    repos: [acme/backend]\n",
     extraEnv: Record<string, string> = {},
+    elicit?: (request: ElicitRequest) => Promise<ElicitResult>,
 ) {
     const directory = await mkdtemp(join(tmpdir(), "agentiam-proxy-"));
     directories.push(directory);
@@ -52,7 +58,11 @@ async function setup(
         AGENTIAM_TEST_CALLS: calls,
         ...extraEnv,
     };
-    const client = new Client({ name: "proxy-test", version: "1.0.0" });
+    const client = new Client(
+        { name: "proxy-test", version: "1.0.0" },
+        { capabilities: elicit ? { elicitation: { form: {} } } : {} },
+    );
+    if (elicit) client.setRequestHandler(ElicitRequestSchema, elicit);
     clients.push(client);
     return {
         project,
@@ -92,6 +102,370 @@ async function setup(
 }
 
 describe("built MCP proxy", () => {
+    it("saves a global allow for all repositories without executing until retry", async () => {
+        const choices = ["allow", "all"];
+        const fixture = await setup("allow: {}\n", {}, async () => ({
+            action: "accept",
+            content: { choice: choices.shift()! },
+        }));
+        await fixture.connect();
+        const request = {
+            name: "get_file_contents",
+            arguments: { owner: "acme", repo: "backend" },
+        };
+        const initial = await fixture.client.callTool(request);
+        expect(initial).toMatchObject({ isError: true });
+        expect(JSON.stringify(initial)).toContain("retry required");
+        expect(await fixture.calls()).toEqual([]);
+        expect(
+            await readFile(
+                join(fixture.home, ".agentiam", "policy.yaml"),
+                "utf8",
+            ),
+        ).toContain("github.file.read: true");
+        expect(
+            await fixture.client.callTool({
+                ...request,
+                arguments: { owner: "acme", repo: "other" },
+            }),
+        ).toMatchObject({ content: [{ text: "upstream-result" }] });
+        expect(choices).toEqual([]);
+    });
+
+    it("does not retry an upstream failure after an allow-once approval", async () => {
+        const fixture = await setup(
+            "allow: {}\n",
+            { AGENTIAM_TEST_CALL_FAILURE: "1" },
+            async () => ({
+                action: "accept",
+                content: { choice: "allow-once" },
+            }),
+        );
+        await fixture.connect();
+        expect(
+            await fixture.client.callTool({
+                name: "get_file_contents",
+                arguments: { owner: "acme", repo: "backend" },
+            }),
+        ).toMatchObject({
+            isError: true,
+            content: [{ text: "MCP upstream call failed; no retry was made" }],
+        });
+        expect(await fixture.calls()).toHaveLength(1);
+    });
+
+    it("denies without forwarding when policy becomes invalid during approval", async () => {
+        const fixture = await setup("allow: {}\n", {}, async () => {
+            await writeFile(
+                join(fixture.home, ".agentiam", "policy.yaml"),
+                "allow: [invalid",
+            );
+            return { action: "accept", content: { choice: "allow" } };
+        });
+        await fixture.connect();
+        expect(
+            await fixture.client.callTool({
+                name: "get_file_contents",
+                arguments: { owner: "acme", repo: "backend" },
+            }),
+        ).toMatchObject({ isError: true });
+        expect(await fixture.calls()).toEqual([]);
+        expect((await fixture.records())[1]).toMatchObject({
+            event: "approval",
+            decision: "DENY",
+            reasonCode: "approval_error",
+        });
+    });
+
+    it("does not prompt when the initial audit record cannot be written", async () => {
+        let prompts = 0;
+        const fixture = await setup("allow: {}\n", {}, async () => {
+            prompts++;
+            return { action: "accept", content: { choice: "allow-once" } };
+        });
+        await mkdir(fixture.audit);
+        await fixture.connect();
+        expect(
+            await fixture.client.callTool({
+                name: "get_file_contents",
+                arguments: { owner: "acme", repo: "backend" },
+            }),
+        ).toMatchObject({ isError: true });
+        expect(prompts).toBe(0);
+        expect(await fixture.calls()).toEqual([]);
+    });
+
+    it("does not execute an approved call if approval auditing fails", async () => {
+        const fixture = await setup("allow: {}\n", {}, async () => {
+            await rm(fixture.audit);
+            await mkdir(fixture.audit);
+            return { action: "accept", content: { choice: "allow-once" } };
+        });
+        await fixture.connect();
+        expect(
+            await fixture.client.callTool({
+                name: "get_file_contents",
+                arguments: { owner: "acme", repo: "backend" },
+            }),
+        ).toMatchObject({ isError: true });
+        expect(await fixture.calls()).toEqual([]);
+    });
+
+    it("does not override an explicit deny added while an approval is pending", async () => {
+        const fixture = await setup("allow: {}\n", {}, async () => {
+            await writeFile(
+                join(fixture.home, ".agentiam", "policy.yaml"),
+                "deny:\n  github.file.read: true\n",
+            );
+            return { action: "accept", content: { choice: "allow-once" } };
+        });
+        await fixture.connect();
+        expect(
+            await fixture.client.callTool({
+                name: "get_file_contents",
+                arguments: { owner: "acme", repo: "backend" },
+            }),
+        ).toMatchObject({ isError: true });
+        expect(await fixture.calls()).toEqual([]);
+        expect((await fixture.records())[1]).toMatchObject({
+            event: "approval",
+            decision: "DENY",
+            reasonCode: "approval_error",
+        });
+    });
+
+    it.each(["decline", "cancel", "error", "invalid"])(
+        "fails closed on %s elicitation responses without changing policy",
+        async (action) => {
+            const fixture = await setup("allow: {}\n", {}, async () => {
+                if (action === "error")
+                    throw new Error("private-approval-error");
+                if (action === "invalid")
+                    return {
+                        action: "accept",
+                        content: { choice: "invented-choice" },
+                    };
+                return { action: action as "decline" | "cancel" };
+            });
+            await fixture.connect();
+            const result = await fixture.client.callTool({
+                name: "get_file_contents",
+                arguments: { owner: "acme", repo: "backend" },
+            });
+            expect(result).toMatchObject({ isError: true });
+            expect(JSON.stringify(result)).not.toContain(
+                "private-approval-error",
+            );
+            expect(await fixture.calls()).toEqual([]);
+            expect(
+                await readFile(
+                    join(fixture.home, ".agentiam", "policy.yaml"),
+                    "utf8",
+                ),
+            ).toBe("allow: {}\n");
+        },
+    );
+
+    it("does not persist or forward a call cancelled during approval", async () => {
+        let answer!: (value: ElicitResult) => void;
+        const response = new Promise<ElicitResult>((resolve) => {
+            answer = resolve;
+        });
+        let prompted = false;
+        const fixture = await setup("allow: {}\n", {}, async () => {
+            prompted = true;
+            return response;
+        });
+        await fixture.connect();
+        const controller = new AbortController();
+        const result = fixture.client.callTool(
+            {
+                name: "get_file_contents",
+                arguments: { owner: "acme", repo: "backend" },
+            },
+            undefined,
+            { signal: controller.signal },
+        );
+        const rejected = expect(result).rejects.toThrow();
+        await vi.waitFor(() => expect(prompted).toBe(true));
+        controller.abort();
+        answer({ action: "accept", content: { choice: "allow" } });
+        await rejected;
+        await vi.waitFor(async () =>
+            expect(await fixture.records()).toHaveLength(2),
+        );
+        expect(await fixture.calls()).toEqual([]);
+        expect(
+            await readFile(
+                join(fixture.home, ".agentiam", "policy.yaml"),
+                "utf8",
+            ),
+        ).toBe("allow: {}\n");
+    });
+
+    it("serializes concurrent permanent approvals without losing repository scopes", async () => {
+        const choices = ["allow", "repos", "allow", "repos"];
+        const fixture = await setup("allow: {}\n", {}, async () => ({
+            action: "accept",
+            content: { choice: choices.shift()! },
+        }));
+        await fixture.connect();
+        const results = await Promise.all(
+            ["backend", "frontend"].map((repo) =>
+                fixture.client.callTool({
+                    name: "get_file_contents",
+                    arguments: { owner: "acme", repo },
+                }),
+            ),
+        );
+        expect(results).toEqual([
+            expect.objectContaining({ isError: true }),
+            expect.objectContaining({ isError: true }),
+        ]);
+        expect(choices).toEqual([]);
+        const policy = await readFile(
+            join(fixture.home, ".agentiam", "policy.yaml"),
+            "utf8",
+        );
+        expect(policy).toContain("acme/backend");
+        expect(policy).toContain("acme/frontend");
+        expect(await fixture.calls()).toEqual([]);
+    });
+
+    it("elicits allow once and audits approval before forwarding only that invocation", async () => {
+        let prompts = 0;
+        const fixture = await setup("allow: {}\n", {}, async () => {
+            prompts++;
+            return prompts === 1
+                ? { action: "accept", content: { choice: "allow-once" } }
+                : { action: "cancel" };
+        });
+        await fixture.connect();
+        const request = {
+            name: "get_file_contents",
+            arguments: { owner: "acme", repo: "backend" },
+        };
+        expect(await fixture.client.callTool(request)).toMatchObject({
+            content: [{ text: "upstream-result" }],
+        });
+        expect(await fixture.client.callTool(request)).toMatchObject({
+            isError: true,
+        });
+        expect(prompts).toBe(2);
+        expect(await fixture.calls()).toEqual([
+            expect.objectContaining({ auditedDecision: "ALLOW" }),
+        ]);
+        expect(
+            await readFile(
+                join(fixture.home, ".agentiam", "policy.yaml"),
+                "utf8",
+            ),
+        ).toBe("allow: {}\n");
+        expect(await fixture.records()).toEqual([
+            expect.objectContaining({
+                event: "authorization",
+                decision: "DENY",
+            }),
+            expect.objectContaining({
+                event: "approval",
+                decision: "ALLOW",
+                approval: "allow-once",
+                reasonCode: "allow_once",
+            }),
+            expect.objectContaining({
+                event: "authorization",
+                decision: "DENY",
+            }),
+            expect.objectContaining({
+                event: "approval",
+                decision: "DENY",
+                approval: "skip",
+            }),
+        ]);
+    });
+
+    it.each(["allow", "deny"] as const)(
+        "saves a repository-scoped local %s and requires retry without forwarding",
+        async (choice) => {
+            const choices = [choice, "repos"];
+            const fixture = await setup("allow: {}\n", {}, async () => ({
+                action: "accept",
+                content: {
+                    choice:
+                        choices.shift() ??
+                        join(fixture.project, ".agentiam", "policy.yaml"),
+                },
+            }));
+            const path = join(fixture.project, ".agentiam", "policy.yaml");
+            await mkdir(join(fixture.project, ".agentiam"));
+            await writeFile(path, "allow: {}\n");
+            await fixture.connect();
+            const request = {
+                name: "get_file_contents",
+                arguments: { owner: "acme", repo: "backend" },
+            };
+            expect(await fixture.client.callTool(request)).toMatchObject({
+                isError: true,
+            });
+            expect(await fixture.calls()).toEqual([]);
+            expect(await readFile(path, "utf8")).toContain("acme/backend");
+            expect(await fixture.client.callTool(request)).toMatchObject(
+                choice === "allow"
+                    ? { content: [{ text: "upstream-result" }] }
+                    : { isError: true },
+            );
+            expect(await fixture.calls()).toHaveLength(
+                choice === "allow" ? 1 : 0,
+            );
+            expect((await fixture.records())[1]).toMatchObject({
+                event: "approval",
+                approval: `${choice}-context`,
+                policyPath: path,
+                policyScope: "directory",
+                decision: "DENY",
+            });
+        },
+    );
+
+    it.each([
+        [
+            "deny:\n  github.file.read: true\n",
+            {
+                name: "get_file_contents",
+                arguments: { owner: "acme", repo: "backend" },
+            },
+        ],
+        [
+            "allow: [invalid",
+            {
+                name: "get_file_contents",
+                arguments: { owner: "acme", repo: "backend" },
+            },
+        ],
+        [
+            "allow: {}\n",
+            {
+                name: "delete_repository",
+                arguments: { owner: "acme", repo: "backend" },
+            },
+        ],
+    ])(
+        "never prompts for explicit denies, invalid policy, or unsupported tools (%s)",
+        async (policy, request) => {
+            let prompts = 0;
+            const fixture = await setup(policy, {}, async () => {
+                prompts++;
+                return { action: "accept", content: { choice: "allow-once" } };
+            });
+            await fixture.connect();
+            expect(await fixture.client.callTool(request)).toMatchObject({
+                isError: true,
+            });
+            expect(prompts).toBe(0);
+            expect(await fixture.calls()).toEqual([]);
+        },
+    );
+
     it("grants locally scoped permissions missing globally without allowing other repositories", async () => {
         const fixture = await setup("allow: {}\ndeny: {}\n");
         const path = join(fixture.project, ".agentiam", "policy.yaml");
