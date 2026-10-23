@@ -17,7 +17,10 @@ import {
     requestApproval,
     type ApprovalChoice,
 } from "../approvals/approval.js";
-import type { CanonicalCapability } from "../capability.js";
+import {
+    capability as unknownCapability,
+    type CanonicalCapability,
+} from "../capability.js";
 import { registry, type ToolName } from "../registry/builtins.js";
 import {
     requestBrokerApproval,
@@ -44,8 +47,42 @@ function write(
 }
 
 export async function runShim(options: ShimOptions): Promise<number> {
+    const audit = async (entry: AuditRecord) => {
+        if (options.env.AGENTIAM_AUDIT_DIRECTORY) {
+            await requestAuditWrite(
+                options.env.AGENTIAM_AUDIT_DIRECTORY,
+                entry,
+            );
+        } else {
+            await appendAuditRecord(entry, options.env);
+        }
+    };
     const tool = registry.getCli(options.tool);
-    const capability = await tool.adapter.normalize(options.args, options.env);
+    let capability: CanonicalCapability;
+    try {
+        capability = await tool.adapter.normalize(options.args, options.env);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        write(options.stderr, `[agentiam] ERROR ${message}`);
+        try {
+            await audit({
+                requestId: randomUUID(),
+                timestamp: new Date().toISOString(),
+                capability: unknownCapability(tool.service.service, "unknown"),
+                decision: "DENY",
+                tool: options.tool,
+                arguments: options.args,
+                command: renderCommand(options.tool, options.args),
+                policyPath: resolvePolicyPath(options.env),
+                reason: message,
+                reasonCode: "normalization_error",
+                event: "error",
+            });
+        } catch {
+            write(options.stderr, "[agentiam] Error audit log unavailable");
+        }
+        return 126;
+    }
 
     let policyPath = resolvePolicyPath(options.env);
     let decision: "ALLOW" | "DENY" = "DENY";
@@ -84,16 +121,6 @@ export async function runShim(options: ShimOptions): Promise<number> {
         policyScope,
         event: "authorization",
     } as const;
-    const audit = async (entry: AuditRecord) => {
-        if (options.env.AGENTIAM_AUDIT_DIRECTORY) {
-            await requestAuditWrite(
-                options.env.AGENTIAM_AUDIT_DIRECTORY,
-                entry,
-            );
-        } else {
-            await appendAuditRecord(entry, options.env);
-        }
-    };
     try {
         await audit(record);
     } catch (error) {
@@ -103,11 +130,11 @@ export async function runShim(options: ShimOptions): Promise<number> {
         );
         return 126;
     }
-    write(
-        options.stderr,
-        `[agentiam] ${decision} ${capability.canonical}: ${reason}`,
-    );
     if (decision === "DENY") {
+        write(
+            options.stderr,
+            `[agentiam] DENY ${capability.canonical}: ${reason}`,
+        );
         if (
             (reasonCode === "no_allow_rule" ||
                 reasonCode === "constraint_mismatch") &&
@@ -252,10 +279,20 @@ export async function runShim(options: ShimOptions): Promise<number> {
         );
         return result.code ?? 128;
     } catch (error) {
-        write(
-            options.stderr,
-            `[agentiam] ERROR ${error instanceof Error ? error.message : String(error)}`,
-        );
+        const message = error instanceof Error ? error.message : String(error);
+        try {
+            await audit({
+                ...record,
+                timestamp: new Date().toISOString(),
+                decision: "DENY",
+                event: "error",
+                reasonCode: "execution_error",
+                reason: message,
+            });
+        } catch {
+            write(options.stderr, "[agentiam] Error audit log unavailable");
+        }
+        write(options.stderr, `[agentiam] ERROR ${message}`);
         return 127;
     }
 }

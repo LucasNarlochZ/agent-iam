@@ -1,10 +1,11 @@
 import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Writable } from "node:stream";
-import { describe, expect, it } from "vitest";
+import { PassThrough, Writable } from "node:stream";
+import { describe, expect, it, vi } from "vitest";
 import { runShim } from "../../src/runtime/shim.js";
 import { resolveAuditPath } from "../../src/audit/audit.js";
+import { registry } from "../../src/registry/builtins.js";
 
 async function fakeTool(directory: string, tool: string): Promise<string> {
     const path = join(directory, tool);
@@ -17,6 +18,41 @@ async function fakeTool(directory: string, tool: string): Promise<string> {
 }
 
 describe("command shim", () => {
+    it("reports normalization errors on stderr and audits them without executing", async () => {
+        const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
+        const normalize = vi
+            .spyOn(registry.getCli("git").adapter, "normalize")
+            .mockRejectedValueOnce(new Error("normalization failed"));
+        const stderr = new PassThrough();
+        try {
+            expect(
+                await runShim({
+                    tool: "git",
+                    args: ["add", "file.txt"],
+                    env: { HOME: home, PATH: "" },
+                    cwd: home,
+                    stderr,
+                }),
+            ).toBe(126);
+            expect(stderr.read()?.toString()).toContain(
+                "[agentiam] ERROR normalization failed",
+            );
+            const record = JSON.parse(
+                (
+                    await readFile(resolveAuditPath({ HOME: home }), "utf8")
+                ).trim(),
+            );
+            expect(record).toMatchObject({
+                decision: "DENY",
+                event: "error",
+                reasonCode: "normalization_error",
+                reason: "normalization failed",
+                tool: "git",
+            });
+        } finally {
+            normalize.mockRestore();
+        }
+    });
     it.each([
         {
             policy: "allow:\n  git.add: true\n",
@@ -56,6 +92,7 @@ describe("command shim", () => {
             await fakeTool(bin, "git");
             await mkdir(join(home, ".agentiam"));
             await writeFile(join(home, ".agentiam", "policy.yaml"), policy);
+            const stderr = new PassThrough();
             await runShim({
                 tool: "git",
                 args,
@@ -65,6 +102,7 @@ describe("command shim", () => {
                     AGENTIAM_TEST_OUTPUT: join(home, "args.txt"),
                 },
                 cwd: home,
+                stderr,
                 promptForApproval: async () => "skip",
             });
             const [record] = (
@@ -79,8 +117,48 @@ describe("command shim", () => {
                 event: "authorization",
             });
             expect(record.reason.length).toBeGreaterThan(10);
+            const message = stderr.read()?.toString() ?? "";
+            if (decision === "ALLOW") {
+                expect(message).toBe("");
+            } else {
+                expect(message).toContain(
+                    `[agentiam] DENY ${record.capability.canonical}:`,
+                );
+            }
         },
     );
+
+    it("reports executable resolution errors on stderr and audits them", async () => {
+        const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
+        await mkdir(join(home, ".agentiam"));
+        await writeFile(
+            join(home, ".agentiam", "policy.yaml"),
+            "allow:\n  git.add: true\n",
+        );
+        const stderr = new PassThrough();
+        expect(
+            await runShim({
+                tool: "git",
+                args: ["add", "file.txt"],
+                env: { HOME: home, PATH: "" },
+                cwd: home,
+                stderr,
+            }),
+        ).toBe(127);
+        expect(stderr.read()?.toString()).toMatch(/^\[agentiam\] ERROR /);
+        const records = (
+            await readFile(resolveAuditPath({ HOME: home }), "utf8")
+        )
+            .trim()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+        expect(records.at(-1)).toMatchObject({
+            event: "error",
+            reasonCode: "execution_error",
+            decision: "DENY",
+        });
+        expect(records.at(-1).requestId).toBe(records[0].requestId);
+    });
 
     it("audits allow-once separately before executing the command", async () => {
         const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
@@ -88,6 +166,7 @@ describe("command shim", () => {
         await fakeTool(bin, "git");
         await mkdir(join(home, ".agentiam"));
         await writeFile(join(home, ".agentiam", "policy.yaml"), "allow: {}\n");
+        const stderr = new PassThrough();
         const code = await runShim({
             tool: "git",
             args: ["add", "file.txt"],
@@ -97,9 +176,13 @@ describe("command shim", () => {
                 AGENTIAM_TEST_OUTPUT: join(home, "args.txt"),
             },
             cwd: home,
+            stderr,
             promptForApproval: async () => "allow-once",
         });
         expect(code).toBe(7);
+        expect(stderr.read()?.toString()).toContain(
+            "Allowing git.add once; policy unchanged",
+        );
         const records = (
             await readFile(resolveAuditPath({ HOME: home }), "utf8")
         )
