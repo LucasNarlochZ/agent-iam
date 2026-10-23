@@ -2,7 +2,10 @@ import pl from "tau-prolog";
 import type { CanonicalCapability } from "../capability.js";
 import type { CapabilityKey, Policy, PolicyRules } from "./schema.js";
 import { compilePolicy, escapePrologAtom } from "./compiler.js";
-import { capabilityDefinitionFor, serviceForCapability } from "../tools.js";
+import {
+    capabilityDefinitionFor,
+    serviceForCapability,
+} from "../registry/builtins.js";
 
 export interface PolicyDecision {
     decision: "ALLOW" | "DENY";

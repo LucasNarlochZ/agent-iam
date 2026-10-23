@@ -3,17 +3,17 @@ import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import { toolNames } from "./tools.js";
+import { registry } from "../registry/builtins.js";
 import {
     requestBrokerApproval,
     startApprovalBroker,
     startFileApprovalBroker,
-} from "./approval-broker.js";
-import { requestApproval, type ApprovalChoice } from "./approval.js";
-import type { CanonicalCapability } from "./capability.js";
+} from "../approvals/approval-broker.js";
+import { requestApproval, type ApprovalChoice } from "../approvals/approval.js";
+import type { CanonicalCapability } from "../capability.js";
 import { createShellEnvironment } from "./shell-environment.js";
-import { getHarnessAdapter } from "./harnesses/index.js";
-import { startAuditBroker } from "./audit-broker.js";
+import { getHarnessAdapter } from "../harnesses/index.js";
+import { startAuditBroker } from "../audit/audit-broker.js";
 
 export interface RunResult {
     code: number | null;
@@ -160,11 +160,11 @@ export async function runWithShims(
         });
         const commandArgs = harness.commandArgs(args, childEnv);
         await Promise.all(
-            toolNames.map(async (tool) => {
-                const path = join(directory, tool);
+            registry.listCli().map(async ([name, tool]) => {
+                const path = join(directory, tool.executable);
                 await writeFile(
                     path,
-                    wrapper(nodePath, entrypoint, tool),
+                    wrapper(nodePath, entrypoint, name),
                     "utf8",
                 );
                 await chmod(path, 0o755);

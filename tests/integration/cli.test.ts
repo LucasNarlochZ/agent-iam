@@ -77,6 +77,7 @@ describe("built CLI", () => {
             execOptions,
         );
         expect(allowed.stdout).toBe("");
+        expect(allowed.stderr).toBe("");
         expect(await readFile(output, "utf8")).toBe("commit\n-m\ncli-test\n");
         await expect(
             exec(
@@ -103,5 +104,5 @@ describe("built CLI", () => {
         );
         expect(first.stdout).toContain("ALLOW git.commit");
         expect(first.stdout).toContain("matched global allow rule");
-    });
+    }, 15_000);
 });

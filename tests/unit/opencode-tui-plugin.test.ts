@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Plugin } from "@opencode/plugin/tui";
 import plugin from "../../src/harnesses/opencode-tui-plugin.js";
-import { startApprovalChoiceChannel } from "../../src/approval-broker.js";
+import { startApprovalChoiceChannel } from "../../src/approvals/approval-broker.js";
 
 describe("OpenCode TUI approval plugin", () => {
     afterEach(() => vi.restoreAllMocks());

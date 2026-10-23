@@ -1,9 +1,9 @@
 import { writeFile } from "node:fs/promises";
 import { emitKeypressEvents } from "node:readline";
 import { stringify } from "yaml";
-import type { CanonicalCapability } from "./capability.js";
-import type { CapabilityKey, Policy, PolicyRule } from "./policy/schema.js";
-import { serviceForCapability } from "./tools.js";
+import type { CanonicalCapability } from "../capability.js";
+import type { CapabilityKey, Policy, PolicyRule } from "../policy/schema.js";
+import { serviceForCapability } from "../registry/builtins.js";
 
 export type ApprovalChoice =
     "allow" | "allow-context" | "allow-once" | "deny" | "skip";

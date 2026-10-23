@@ -3,7 +3,7 @@ import {
     checkMcpUrl,
     mcpProxyEnvironment,
     proxyMcpCommand,
-} from "../../src/mcp-configuration.js";
+} from "../../src/mcp/mcp-configuration.js";
 
 const runtime = {
     AGENTIAM_NODE: "/runtime/node",

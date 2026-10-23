@@ -6,7 +6,7 @@ import {
     mcpProxyEnvironment,
     checkMcpUrl,
     warnUnproxiedMcp,
-} from "../mcp-configuration.js";
+} from "../mcp/mcp-configuration.js";
 import type { HarnessPreparationContext } from "./index.js";
 
 const execFileAsync = promisify(execFile);

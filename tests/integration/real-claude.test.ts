@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { resolveExecutable } from "../../src/process.js";
+import { resolveExecutable } from "../../src/runtime/process.js";
 import { startScriptedMessages } from "../support/scripted-messages.js";
 
 const exec = promisify(execFile);

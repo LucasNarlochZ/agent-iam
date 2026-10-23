@@ -5,11 +5,11 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it } from "vitest";
-import { requestBrokerApproval } from "../../src/approval-broker.js";
+import { requestBrokerApproval } from "../../src/approvals/approval-broker.js";
 import {
     createMcpApprovalServer,
     startMcpApprovalSocket,
-} from "../../src/mcp-approval.js";
+} from "../../src/mcp/mcp-approval.js";
 
 describe("MCP approval socket", () => {
     it("forwards shim approval requests to the MCP client", async () => {

@@ -3,22 +3,29 @@ import {
     isCapabilityKey,
     resolvePolicyPath,
     loadPolicy,
-} from "./policy/schema.js";
-import { evaluatePolicies } from "./policy/engine.js";
-import { appendAuditRecord, renderCommand, type AuditRecord } from "./audit.js";
-import { requestAuditWrite } from "./audit-broker.js";
+} from "../policy/schema.js";
+import { evaluatePolicies } from "../policy/engine.js";
+import {
+    appendAuditRecord,
+    renderCommand,
+    type AuditRecord,
+} from "../audit/audit.js";
+import { requestAuditWrite } from "../audit/audit-broker.js";
 import { resolveExecutable, spawnInherited } from "./process.js";
 import {
     persistApproval,
     requestApproval,
     type ApprovalChoice,
-} from "./approval.js";
-import type { CanonicalCapability } from "./capability.js";
-import { cliTools, type ToolName } from "./tools.js";
+} from "../approvals/approval.js";
+import {
+    capability as unknownCapability,
+    type CanonicalCapability,
+} from "../capability.js";
+import { registry, type ToolName } from "../registry/builtins.js";
 import {
     requestBrokerApproval,
     requestFileApproval,
-} from "./approval-broker.js";
+} from "../approvals/approval-broker.js";
 
 export interface ShimOptions {
     tool: ToolName;
@@ -40,10 +47,42 @@ function write(
 }
 
 export async function runShim(options: ShimOptions): Promise<number> {
-    const capability = await cliTools[options.tool].adapter.normalize(
-        options.args,
-        options.env,
-    );
+    const audit = async (entry: AuditRecord) => {
+        if (options.env.AGENTIAM_AUDIT_DIRECTORY) {
+            await requestAuditWrite(
+                options.env.AGENTIAM_AUDIT_DIRECTORY,
+                entry,
+            );
+        } else {
+            await appendAuditRecord(entry, options.env);
+        }
+    };
+    const tool = registry.getCli(options.tool);
+    let capability: CanonicalCapability;
+    try {
+        capability = await tool.adapter.normalize(options.args, options.env);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        write(options.stderr, `[agentiam] ERROR ${message}`);
+        try {
+            await audit({
+                requestId: randomUUID(),
+                timestamp: new Date().toISOString(),
+                capability: unknownCapability(tool.service.service, "unknown"),
+                decision: "DENY",
+                tool: options.tool,
+                arguments: options.args,
+                command: renderCommand(options.tool, options.args),
+                policyPath: resolvePolicyPath(options.env),
+                reason: message,
+                reasonCode: "normalization_error",
+                event: "error",
+            });
+        } catch {
+            write(options.stderr, "[agentiam] Error audit log unavailable");
+        }
+        return 126;
+    }
 
     let policyPath = resolvePolicyPath(options.env);
     let decision: "ALLOW" | "DENY" = "DENY";
@@ -82,16 +121,6 @@ export async function runShim(options: ShimOptions): Promise<number> {
         policyScope,
         event: "authorization",
     } as const;
-    const audit = async (entry: AuditRecord) => {
-        if (options.env.AGENTIAM_AUDIT_DIRECTORY) {
-            await requestAuditWrite(
-                options.env.AGENTIAM_AUDIT_DIRECTORY,
-                entry,
-            );
-        } else {
-            await appendAuditRecord(entry, options.env);
-        }
-    };
     try {
         await audit(record);
     } catch (error) {
@@ -101,11 +130,11 @@ export async function runShim(options: ShimOptions): Promise<number> {
         );
         return 126;
     }
-    write(
-        options.stderr,
-        `[agentiam] ${decision} ${capability.canonical}: ${reason}`,
-    );
     if (decision === "DENY") {
+        write(
+            options.stderr,
+            `[agentiam] DENY ${capability.canonical}: ${reason}`,
+        );
         if (
             (reasonCode === "no_allow_rule" ||
                 reasonCode === "constraint_mismatch") &&
@@ -240,7 +269,7 @@ export async function runShim(options: ShimOptions): Promise<number> {
     }
     try {
         const executable = await resolveExecutable(
-            options.tool,
+            tool.executable,
             options.env.AGENTIAM_ORIGINAL_PATH ?? options.env.PATH ?? "",
         );
         const result = await spawnInherited(
@@ -250,10 +279,20 @@ export async function runShim(options: ShimOptions): Promise<number> {
         );
         return result.code ?? 128;
     } catch (error) {
-        write(
-            options.stderr,
-            `[agentiam] ERROR ${error instanceof Error ? error.message : String(error)}`,
-        );
+        const message = error instanceof Error ? error.message : String(error);
+        try {
+            await audit({
+                ...record,
+                timestamp: new Date().toISOString(),
+                decision: "DENY",
+                event: "error",
+                reasonCode: "execution_error",
+                reason: message,
+            });
+        } catch {
+            write(options.stderr, "[agentiam] Error audit log unavailable");
+        }
+        write(options.stderr, `[agentiam] ERROR ${message}`);
         return 127;
     }
 }

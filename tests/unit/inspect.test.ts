@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
-import { main } from "../../src/cli.js";
-import { appendAuditRecord, resolveAuditPath } from "../../src/audit.js";
+import { main } from "../../src/cli/cli.js";
+import { appendAuditRecord, resolveAuditPath } from "../../src/audit/audit.js";
 
 async function setup(count = 0) {
     const home = await mkdtemp(join(tmpdir(), "agentiam-inspect-"));

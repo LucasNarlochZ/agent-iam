@@ -1,15 +1,15 @@
-import type { CanonicalCapability } from "./capability.js";
+import type { CanonicalCapability } from "../capability.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpServer as NativeMcpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { once } from "node:events";
-import { startApprovalBroker } from "./approval-broker.js";
+import { startApprovalBroker } from "../approvals/approval-broker.js";
 import {
     approvalMessage,
     approvalOptions,
     type ApprovalChoice,
-} from "./approval.js";
+} from "../approvals/approval.js";
 
 interface ElicitationRequest {
     mode: "form";

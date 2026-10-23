@@ -24,6 +24,12 @@ Counts must be positive integers. `--head` and `--tail` are mutually exclusive. 
 
 The reader streams the file and retains at most the selected number of records. Blank lines are ignored. Invalid or partially written records are skipped with a line-number warning on stderr, without printing their contents. Counts apply to valid records; `--head` stops after finding enough. An empty log produces no records. A missing log prints a notice on stderr and exits successfully without creating a file; other read errors exit with code 1.
 
+## Command output
+
+CLI actions allowed by existing policy produce no Agent IAM terminal message; the command's own output is unchanged. Explicit and default denials are reported on stderr. Allow-once approvals and saved policy changes produce brief confirmations on stderr. Saving an allow rule still requires retrying the command.
+
+Authorization and approval events remain audited even when terminal output is silent. Internal errors are reported on stderr and audited when possible; an unavailable audit log cannot record its own failure.
+
 ## Reading a decision
 
 Formatted records include the timestamp, decision, capability, reason, policy path, and command:
@@ -40,7 +46,7 @@ Control characters are escaped in formatted output so log content cannot insert 
 New authorization records include:
 
 - `requestId`: identifier shared with any approval outcome for the same CLI invocation.
-- `event`: `authorization` for the policy decision, or `approval` for the later user/broker outcome.
+- `event`: `authorization` for the policy decision, `approval` for the later user/broker outcome, or `error` for a CLI normalization or execution error.
 - `decision`: `ALLOW` or `DENY` for that event, not proof of command success.
 - `reason`: a readable explanation, including expected and actual context for constraint mismatches.
 - `reasonCode`: a machine-readable category.
@@ -65,6 +71,8 @@ Policy-loading failures may have no scope because evaluation did not complete. E
 | `approval_deny`                            | The user saved an explicit deny rule.                                       |
 | `approval_skip`                            | Approval was skipped or unavailable; the action remains denied.             |
 | `approval_error`                           | A selected policy change could not be saved; the action remains denied.     |
+| `execution_error`                          | The CLI executable could not be resolved or started.                        |
+| `normalization_error`                      | The CLI adapter failed to identify the requested capability.                |
 
 ## Policy decisions versus approval outcomes
 
@@ -76,4 +84,4 @@ Filter by `event` when counting policy decisions; counting every record counts a
 
 CLI audit records include the original arguments. Avoid putting credentials or other secrets in command arguments and treat the audit file as sensitive. GitHub MCP records contain only supported tool names and normalized capability/repository context, not raw call arguments or tool results. Policy-loading errors for MCP use sanitized categories rather than raw parser errors.
 
-Audit records describe authorization, not process completion, exit status, or upstream success. See [architecture](ARCHITECTURE.md#audit-log) for audit delivery, sandbox requirements, and failure semantics.
+Audit records describe authorization and CLI execution errors, not process completion, exit status, or upstream success. See [architecture](ARCHITECTURE.md#audit-log) for audit delivery, sandbox requirements, and failure semantics.

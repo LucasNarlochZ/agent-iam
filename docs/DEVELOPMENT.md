@@ -22,7 +22,7 @@ Before opening any pull request, also run `npm run test:isolated`. Fix failures 
 
 ## Extending integrations
 
-Tool integrations are registered in [`src/tools.ts`](../src/tools.ts). Adding a command-only tool integration requires an adapter class and a registry entry; shim creation, CLI validation, auditing, and policy capability validation derive metadata from that registry. Integrations with policy constraints also define their constraint extraction there.
+Built-in tool integrations are registered in [`src/registry/builtins.ts`](../src/registry/builtins.ts). Adding a command-only tool integration requires an adapter class and a registry entry; shim creation, CLI validation, auditing, and policy capability validation derive metadata from that registry. Service capability definitions and policy constraint extraction live in [`src/services/`](../src/services/).
 
 When adding a capability, update the [command reference](CAPABILITIES.md) and tests for normalization, policy validation, and approval behavior. Registration must not automatically grant permission. See [architecture](ARCHITECTURE.md) for source entry points and enforcement boundaries.
 

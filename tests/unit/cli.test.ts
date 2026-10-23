@@ -1,7 +1,9 @@
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
-import { main } from "../../src/cli.js";
+import { main } from "../../src/cli/cli.js";
 
 describe("version command", () => {
     it("prints the package version without loading a policy", async () => {
@@ -32,6 +34,32 @@ describe("version command", () => {
         expect(stderr.read()?.toString()).toBe(
             "agentiam --version does not accept arguments\n",
         );
+    });
+});
+
+describe("init command", () => {
+    it("copies the packaged example policy without overwriting an existing policy", async () => {
+        const home = await mkdtemp(join(tmpdir(), "agentiam-cli-"));
+        try {
+            const dependencies = {
+                env: { HOME: home },
+                output: {
+                    stdout: new PassThrough(),
+                    stderr: new PassThrough(),
+                },
+            };
+            expect(await main(["init"], dependencies)).toBe(0);
+            const expected = await readFile(
+                new URL("../../examples/policy.yaml", import.meta.url),
+                "utf8",
+            );
+            const path = join(home, ".agentiam", "policy.yaml");
+            expect(await readFile(path, "utf8")).toBe(expected);
+            expect(await main(["init"], dependencies)).toBe(1);
+            expect(await readFile(path, "utf8")).toBe(expected);
+        } finally {
+            await rm(home, { recursive: true, force: true });
+        }
     });
 });
 

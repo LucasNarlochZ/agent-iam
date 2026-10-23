@@ -7,12 +7,20 @@ import {
     CallToolRequestSchema,
     ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { appendAuditRecord, type AuditRecord } from "./audit.js";
-import { requestAuditWrite } from "./audit-broker.js";
-import { capability } from "./capability.js";
-import { evaluatePolicies } from "./policy/engine.js";
-import { loadPolicy, resolvePolicyPath, PolicyError } from "./policy/schema.js";
-import { mcpTools, type McpToolName, type McpAuditToolName } from "./tools.js";
+import { appendAuditRecord, type AuditRecord } from "../audit/audit.js";
+import { requestAuditWrite } from "../audit/audit-broker.js";
+import { capability } from "../capability.js";
+import { evaluatePolicies } from "../policy/engine.js";
+import {
+    loadPolicy,
+    resolvePolicyPath,
+    PolicyError,
+} from "../policy/schema.js";
+import {
+    registry,
+    type McpToolName,
+    type McpAuditToolName,
+} from "../registry/builtins.js";
 
 export interface McpProxyOptions {
     env?: NodeJS.ProcessEnv;
@@ -31,7 +39,7 @@ export function createMcpProxy(
     options: McpProxyOptions = {},
 ): Server {
     const env = options.env ?? process.env;
-    const tool = mcpTools[toolName];
+    const tool = registry.getMcp(toolName);
     const { adapter } = tool;
     const auditTool: McpAuditToolName = `${toolName}-mcp`;
     const server = new Server(
@@ -96,7 +104,8 @@ export function createMcpProxy(
         const record: AuditRecord = {
             requestId: randomUUID(),
             timestamp: new Date().toISOString(),
-            capability: normalized ?? capability(tool.service, "unknown"),
+            capability:
+                normalized ?? capability(tool.service.service, "unknown"),
             decision,
             tool: auditTool,
             arguments: [safeName],

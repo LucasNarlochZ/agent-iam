@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { resolveExecutable } from "../../src/process.js";
+import { resolveExecutable } from "../../src/runtime/process.js";
 import { startScriptedResponses } from "../support/scripted-responses.js";
 
 const exec = promisify(execFile);
@@ -100,9 +100,15 @@ describe.skipIf(!codex || process.platform === "win32")("real Codex", () => {
                         item.call_id === "agentiam-shell-call",
                 );
                 expect(toolOutput).toBeDefined();
-                expect(JSON.stringify(toolOutput)).toContain(
-                    `[agentiam] ${decision} git.push`,
-                );
+                if (decision === "ALLOW") {
+                    expect(JSON.stringify(toolOutput)).not.toContain(
+                        "[agentiam]",
+                    );
+                } else {
+                    expect(JSON.stringify(toolOutput)).toContain(
+                        "[agentiam] DENY git.push",
+                    );
+                }
                 expect(JSON.stringify(toolOutput)).toMatch(
                     decision === "ALLOW"
                         ? /(?:exited with code|exit_code[\\\"]*[: ]+)\s*0/

@@ -95,14 +95,15 @@ GitHub MCP records use `tool: "github-mcp"`. To avoid recording credentials or p
 
 ## Source entry points
 
-| Area                          | Entry point                               |
-| ----------------------------- | ----------------------------------------- |
-| CLI dispatch                  | [`src/cli.ts`](../src/cli.ts)             |
-| Wrapped process lifecycle     | [`src/runner.ts`](../src/runner.ts)       |
-| CLI authorization             | [`src/shim.ts`](../src/shim.ts)           |
-| Tool and capability registry  | [`src/tools.ts`](../src/tools.ts)         |
-| Policy loading and evaluation | [`src/policy/`](../src/policy/)           |
-| Agent integrations            | [`src/harnesses/`](../src/harnesses/)     |
-| MCP forwarding                | [`src/mcp-proxy.ts`](../src/mcp-proxy.ts) |
+| Area                          | Entry point                                               |
+| ----------------------------- | --------------------------------------------------------- |
+| CLI dispatch                  | [`src/cli/cli.ts`](../src/cli/cli.ts)                     |
+| Wrapped process lifecycle     | [`src/runtime/runner.ts`](../src/runtime/runner.ts)       |
+| CLI authorization             | [`src/runtime/shim.ts`](../src/runtime/shim.ts)           |
+| Built-in tool registration    | [`src/registry/builtins.ts`](../src/registry/builtins.ts) |
+| Service capabilities          | [`src/services/`](../src/services/)                       |
+| Policy loading and evaluation | [`src/policy/`](../src/policy/)                           |
+| Agent integrations            | [`src/harnesses/`](../src/harnesses/)                     |
+| MCP forwarding                | [`src/mcp/mcp-proxy.ts`](../src/mcp/mcp-proxy.ts)         |
 
 See [development](DEVELOPMENT.md) for extending the registry and running tests.

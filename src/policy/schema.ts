@@ -2,7 +2,7 @@ import { homedir } from "node:os";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { parse } from "yaml";
-import { capabilityDefinitionFor } from "../tools.js";
+import { capabilityDefinitionFor } from "../registry/builtins.js";
 
 export type CapabilityKey = string;
 export type PolicyRule = true | Record<string, string[]>;

@@ -3,13 +3,13 @@ import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
-import type { CanonicalCapability } from "./capability.js";
+import type { CanonicalCapability } from "../capability.js";
 import {
     isToolName,
     isMcpAuditToolName,
     type ToolName,
     type McpAuditToolName,
-} from "./tools.js";
+} from "../registry/builtins.js";
 
 export type Decision = "ALLOW" | "DENY";
 
@@ -24,7 +24,7 @@ export interface AuditRecord {
     reason: string;
     reasonCode?: string;
     policyScope?: "global" | "directory";
-    event?: "authorization" | "approval";
+    event?: "authorization" | "approval" | "error";
     approval?: string;
     requestId?: string;
 }
@@ -51,7 +51,7 @@ export function parseAuditRecord(input: string): AuditRecord {
         (record.policyScope !== undefined &&
             !["global", "directory"].includes(record.policyScope)) ||
         (record.event !== undefined &&
-            !["authorization", "approval"].includes(record.event)) ||
+            !["authorization", "approval", "error"].includes(record.event)) ||
         (record.approval !== undefined &&
             typeof record.approval !== "string") ||
         (record.requestId !== undefined && typeof record.requestId !== "string")

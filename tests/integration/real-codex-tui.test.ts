@@ -12,7 +12,7 @@ import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
-import { resolveExecutable } from "../../src/process.js";
+import { resolveExecutable } from "../../src/runtime/process.js";
 import { startScriptedResponses } from "../support/scripted-responses.js";
 import { startTerminal } from "../support/terminal.js";
 
@@ -166,7 +166,8 @@ describe.skipIf(!codex || process.platform !== "linux")(
                     );
                     if (choice === "allow") {
                         await expect(retry).resolves.toMatchObject({
-                            stderr: expect.stringContaining("[agentiam] ALLOW"),
+                            stdout: "",
+                            stderr: "",
                         });
                         expect(await readFile(marker, "utf8")).toBe("executed");
                     } else {

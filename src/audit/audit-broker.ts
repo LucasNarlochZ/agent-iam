@@ -3,7 +3,7 @@ import {
     parseAuditRecord,
     type AuditRecord,
 } from "./audit.js";
-import { requestFileBroker, startFileBroker } from "./file-broker.js";
+import { requestFileBroker, startFileBroker } from "../ipc/file-broker.js";
 
 export function startAuditBroker(
     directory: string,

@@ -2,9 +2,28 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { appendAuditRecord, resolveAuditPath } from "../../src/audit.js";
+import {
+    appendAuditRecord,
+    parseAuditRecord,
+    resolveAuditPath,
+} from "../../src/audit/audit.js";
 
 describe("audit log", () => {
+    it("accepts internal error events", () => {
+        const record = {
+            timestamp: new Date().toISOString(),
+            capability: { service: "git", action: "add", canonical: "git.add" },
+            decision: "DENY",
+            tool: "git",
+            arguments: ["add", "file.txt"],
+            command: "git add file.txt",
+            policyPath: "/policy.yaml",
+            reason: "executable unavailable",
+            reasonCode: "execution_error",
+            event: "error",
+        };
+        expect(parseAuditRecord(JSON.stringify(record))).toEqual(record);
+    });
     it("appends structured JSONL records without losing arguments", async () => {
         const home = await mkdtemp(join(tmpdir(), "agentiam-audit-"));
         const record = {
