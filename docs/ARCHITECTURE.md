@@ -36,7 +36,7 @@ Audit write acknowledged
 
 The runner creates temporary wrappers and private communication channels for the wrapped process. Real binaries are resolved from the original `PATH` to prevent wrapper recursion. Arguments are forwarded as an array, not reconstructed through a shell.
 
-Adapters produce canonical capabilities and any supported context, such as repository, branch, or staged paths. The global user policy and directory restrictions are loaded before evaluation. Unknown capabilities, invalid policies, policy-engine errors, and audit failures deny execution.
+Adapters produce canonical capabilities and any supported context, such as repository, branch, or staged paths. The global user policy and directory policies are loaded before evaluation. A matching explicit deny in any applicable policy takes precedence; otherwise, a matching allow in any policy grants permission. Without a matching allow, the action is denied. Unknown capabilities, invalid policies, policy-engine errors, and audit failures deny execution.
 
 ## Approval bridges
 

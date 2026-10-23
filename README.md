@@ -70,7 +70,7 @@ To initialize a directory policy in the current directory instead:
 agentiam init --local
 ```
 
-This creates `./.agentiam/policy.yaml` without changing the home-directory policy. It does not overwrite an existing local policy. Directory policies add restrictions to the global policy; they do not replace it.
+This creates `./.agentiam/policy.yaml` without changing the home-directory policy. It does not overwrite an existing local policy. Directory policies can grant permissions missing globally, but matching explicit denies in any applicable policy still take precedence.
 
 Launch your coding agent through Agent IAM:
 
@@ -103,7 +103,7 @@ deny:
   github.pr.merge: true
 ```
 
-Explicit denies take precedence. Project policies can add restrictions, and supported rules can be scoped by repository, branch, or staged paths.
+Explicit denies take precedence. Project policies can grant permissions or deny actions, and supported rules can be scoped by repository, branch, or staged paths.
 
 ```bash
 agentiam inspect policy

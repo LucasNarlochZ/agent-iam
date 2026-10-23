@@ -98,7 +98,7 @@ deny:
     github.pr.merge: true
 ```
 
-Policy is reloaded for every call. Directory restrictions use the proxy's working directory, not a path supplied by the caller. Calls without a matching allow, unsupported tools or arguments, invalid policies, and audit failures are denied without interactive approval. Denials return an MCP tool error and never invoke the upstream tool.
+Policy is reloaded for every call. Directory policies use the proxy's working directory, not a path supplied by the caller. A matching local allow can authorize a call without a global allow; matching explicit denies in any applicable policy still win. Calls without a matching allow, unsupported tools or arguments, invalid policies, and audit failures are denied without interactive approval. Denials return an MCP tool error and never invoke the upstream tool.
 
 Tool discovery is not filtered by current policy. Resources, prompts, and upstream-initiated requests are not proxied. Authorization is audited before forwarding; failed upstream calls are not retried. See [architecture](ARCHITECTURE.md#mcp-authorization-flow) for execution and audit semantics.
 

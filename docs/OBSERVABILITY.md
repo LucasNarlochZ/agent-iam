@@ -50,7 +50,7 @@ New authorization records include:
 - `decision`: `ALLOW` or `DENY` for that event, not proof of command success.
 - `reason`: a readable explanation, including expected and actual context for constraint mismatches.
 - `reasonCode`: a machine-readable category.
-- `policyPath`: the decisive policy file; directory denials identify the directory policy, not just the global file.
+- `policyPath`: the decisive policy file; directory grants and denials identify the directory policy, not just the global file.
 - `policyScope`: `global` or `directory` when evaluation reaches a policy decision.
 - `capability`, `tool`, `command`, `arguments`, and `timestamp`: the intercepted action and when authorization occurred.
 

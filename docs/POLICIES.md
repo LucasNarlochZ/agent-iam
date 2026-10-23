@@ -7,7 +7,7 @@ agentiam init
 agentiam inspect policy
 ```
 
-`init` does not overwrite an existing policy. `inspect policy` shows the global policy and its constraints, not a merged view of directory restrictions. Bare `agentiam inspect` now prints subcommand usage; use `agentiam inspect policy` in existing scripts.
+`init` does not overwrite an existing policy. `inspect policy` shows the global policy and its constraints, not a merged view of directory policies. Bare `agentiam inspect` now prints subcommand usage; use `agentiam inspect policy` in existing scripts.
 
 ## Allow and deny rules
 
@@ -33,11 +33,15 @@ Use `true` for a capability-wide rule. Contextual rules can constrain supported 
 
 ## Directory policies
 
-Agent IAM also reads `.agentiam/policy.yaml` from the current directory and each parent directory. These policies can only add restrictions to the global policy:
+Agent IAM also reads `.agentiam/policy.yaml` from the current directory and each parent directory. Rules from all applicable policies are evaluated together:
 
-- Deny rules block additional matching actions.
-- Allow rules add required constraints to actions already allowed globally.
-- A directory policy cannot allow an action denied or omitted globally.
+- A matching explicit deny in any global or directory policy blocks the action, regardless of allow rules elsewhere.
+- Otherwise, a matching allow in any applicable policy grants permission, including when the global policy omits the action or its allow constraints do not match.
+- Without any matching allow, the action remains denied.
+
+Allow rules are additive: a narrower directory allow does not restrict a broader global or ancestor allow. Use explicit deny rules to block actions. Review directory policies before running an agent in a repository, because they can grant permissions.
+
+Use `agentiam init --local` to create `.agentiam/policy.yaml` in the current directory. The global policy is still required.
 
 For example, this project policy prevents merges even when the global policy allows them:
 
@@ -63,7 +67,7 @@ For permanent decisions, the second question offers all contexts of the action o
 
 If the command's current directory contains `.agentiam/policy.yaml`, the final question offers the global and local policies, showing each full path. Otherwise, rules are saved to `~/.agentiam/policy.yaml` without a destination question. Ancestor-directory policies are not offered as local destinations. Cancelling any question leaves policy unchanged.
 
-Local policies can restrict global permissions, not override global denials or grant missing global permissions. Saving an allow rule does not execute the denied command; retry it to apply the change. **Allow once** is the exception: it permits that invocation without saving a rule.
+Local allow rules can grant missing global permissions, but cannot override matching explicit denies in any applicable policy. Saving an allow rule does not execute the denied command; retry it to apply the change. **Allow once** is the exception: it permits that invocation without saving a rule.
 
 Existing explicit denies do not prompt. Unsupported capabilities, invalid policies, and audit failures deny without prompting. GitHub MCP tool calls also deny without interactive approval; configure their rules beforehand.
 
