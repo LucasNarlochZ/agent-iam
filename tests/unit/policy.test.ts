@@ -76,6 +76,129 @@ describe("policy compiler", () => {
 });
 
 describe("policy engine", () => {
+    it("allows a capability granted only by a directory policy and identifies its path", async () => {
+        expect(
+            await evaluatePolicies(
+                { allow: {}, deny: {} },
+                [{ allow: { "git.add": true }, deny: {} }],
+                { service: "git", action: "add", canonical: "git.add" },
+                {
+                    global: "/home/user/.agentiam/policy.yaml",
+                    directories: ["/project/.agentiam/policy.yaml"],
+                },
+            ),
+        ).toMatchObject({
+            decision: "ALLOW",
+            reasonCode: "allow_rule",
+            policyScope: "directory",
+            policyPath: "/project/.agentiam/policy.yaml",
+        });
+    });
+
+    it.each([
+        {
+            global: "allow: {}",
+            directories: [
+                "allow:\n  github.pr.merge:\n    repos: [owner/repo]",
+            ],
+            repository: "owner/repo",
+            decision: "ALLOW",
+        },
+        {
+            global: "allow: {}",
+            directories: [
+                "allow:\n  github.pr.merge:\n    repos: [owner/repo]",
+            ],
+            repository: "other/repo",
+            decision: "DENY",
+        },
+        {
+            global: "allow:\n  github.pr.merge:\n    repos: [other/repo]",
+            directories: [
+                "allow:\n  github.pr.merge:\n    repos: [owner/repo]",
+            ],
+            repository: "owner/repo",
+            decision: "ALLOW",
+        },
+        {
+            global: "allow:\n  github.pr.merge: true",
+            directories: [
+                "allow:\n  github.pr.merge:\n    repos: [other/repo]",
+            ],
+            repository: "owner/repo",
+            decision: "ALLOW",
+        },
+        {
+            global: "deny:\n  github.pr.merge: true",
+            directories: ["allow:\n  github.pr.merge: true"],
+            repository: "owner/repo",
+            decision: "DENY",
+        },
+        {
+            global: "deny:\n  github.pr.merge:\n    repos: [other/repo]",
+            directories: ["allow:\n  github.pr.merge: true"],
+            repository: "owner/repo",
+            decision: "ALLOW",
+        },
+        {
+            global: "allow: {}",
+            directories: [
+                "allow:\n  github.pr.merge: true",
+                "deny:\n  github.pr.merge: true",
+            ],
+            repository: "owner/repo",
+            decision: "DENY",
+        },
+        {
+            global: "allow: {}",
+            directories: [
+                "deny:\n  github.pr.merge: true",
+                "allow:\n  github.pr.merge: true",
+            ],
+            repository: "owner/repo",
+            decision: "DENY",
+        },
+        {
+            global: "allow: {}",
+            directories: [
+                "allow:\n  github.pr.merge: true\ndeny:\n  github.pr.merge:\n    repos: [owner/repo]",
+            ],
+            repository: "owner/repo",
+            decision: "DENY",
+        },
+        {
+            global: "allow: {}",
+            directories: [
+                "allow:\n  github.pr.merge:\n    repos: [other/repo]",
+                "allow:\n  github.pr.merge:\n    repos: [owner/repo]",
+            ],
+            repository: "owner/repo",
+            decision: "ALLOW",
+        },
+        {
+            global: "allow: {}",
+            directories: ["allow: {}", "allow: {}"],
+            repository: "owner/repo",
+            decision: "DENY",
+        },
+    ])(
+        "combines matching allows while preserving explicit denies ($decision, $global, $directories)",
+        async ({ global, directories, repository, decision }) => {
+            expect(
+                await evaluatePolicies(
+                    parsePolicy(global),
+                    directories.map(parsePolicy),
+                    {
+                        service: "github",
+                        action: "merge",
+                        canonical: "github.pr.merge",
+                        constraints: { repository },
+                    },
+                ),
+            ).toMatchObject({ decision });
+        },
+    );
+
     it.each([
         {
             policy: { allow: { "git.add": true as const }, deny: {} },
