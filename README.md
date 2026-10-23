@@ -64,6 +64,14 @@ agentiam init
 
 Review `~/.agentiam/policy.yaml` before using it. The example allows some common commands and explicitly denies operations such as Git pushes and PR merges. `init` never overwrites an existing policy.
 
+To initialize a directory policy in the current directory instead:
+
+```bash
+agentiam init --local
+```
+
+This creates `./.agentiam/policy.yaml` without changing the home-directory policy. It does not overwrite an existing local policy. Directory policies add restrictions to the global policy; they do not replace it.
+
 Launch your coding agent through Agent IAM:
 
 ```bash

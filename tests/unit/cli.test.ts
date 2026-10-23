@@ -38,6 +38,22 @@ describe("version command", () => {
 });
 
 describe("init command", () => {
+    it.each([["--unknown"], ["--local", "extra"], ["--local", "--local"]])(
+        "rejects unsupported init arguments %j",
+        async (...args) => {
+            const stdout = new PassThrough();
+            const stderr = new PassThrough();
+
+            expect(
+                await main(["init", ...args], { output: { stdout, stderr } }),
+            ).toBe(1);
+            expect(stdout.read()).toBeNull();
+            expect(stderr.read()?.toString()).toBe(
+                "Usage: agentiam init [--local]\n",
+            );
+        },
+    );
+
     it("copies the packaged example policy without overwriting an existing policy", async () => {
         const home = await mkdtemp(join(tmpdir(), "agentiam-cli-"));
         try {

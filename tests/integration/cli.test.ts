@@ -40,6 +40,40 @@ describe("built CLI", () => {
         );
     });
 
+    it("initializes a local policy without changing the home policy or overwriting existing files", async () => {
+        const root = await mkdtemp(join(tmpdir(), "agentiam-cli-local-"));
+        const home = join(root, "home");
+        const cwd = join(root, "project");
+        await mkdir(join(home, ".agentiam"), { recursive: true });
+        await mkdir(cwd);
+        const globalPath = join(home, ".agentiam", "policy.yaml");
+        await writeFile(globalPath, "allow: {}\ndeny: {}\n");
+        const cli = resolve("dist/index.js");
+        const options = { cwd, env: { ...process.env, HOME: home } };
+        const path = join(cwd, ".agentiam", "policy.yaml");
+
+        const result = await exec(
+            process.execPath,
+            [cli, "init", "--local"],
+            options,
+        );
+
+        expect(result.stdout).toBe(`Initialized policy: ${path}\n`);
+        expect(result.stderr).toBe("");
+        expect(await readFile(path, "utf8")).toBe(
+            await readFile(resolve("examples/policy.yaml"), "utf8"),
+        );
+        expect(await readFile(globalPath, "utf8")).toBe(
+            "allow: {}\ndeny: {}\n",
+        );
+
+        await writeFile(path, "deny:\n  git.push: true\n");
+        await expect(
+            exec(process.execPath, [cli, "init", "--local"], options),
+        ).rejects.toMatchObject({ code: 1 });
+        expect(await readFile(path, "utf8")).toBe("deny:\n  git.push: true\n");
+    });
+
     it("inspects policy and runs allowed and denied commands", async () => {
         const home = await mkdtemp(join(tmpdir(), "agentiam-cli-home-"));
         const bin = await mkdtemp(join(tmpdir(), "agentiam-cli-bin-"));
