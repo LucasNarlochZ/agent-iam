@@ -96,7 +96,8 @@ export function createMcpProxy(
         const record: AuditRecord = {
             requestId: randomUUID(),
             timestamp: new Date().toISOString(),
-            capability: normalized ?? capability(tool.service, "unknown"),
+            capability:
+                normalized ?? capability(tool.service.service, "unknown"),
             decision,
             tool: auditTool,
             arguments: [safeName],

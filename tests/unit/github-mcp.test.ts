@@ -60,7 +60,9 @@ describe("GitHub MCP normalization", () => {
             expect(capabilityDefinitionFor(normalized!.canonical)).toEqual({
                 constraints: ["repos"],
             });
-            expect(mcpTools.github.policyConstraints(normalized!)).toEqual([
+            expect(
+                mcpTools.github.service.policyConstraints(normalized!),
+            ).toEqual([
                 {
                     name: "repos",
                     values: ["example-org/my_repo.git"],
@@ -282,7 +284,7 @@ describe("GitHub MCP URL recognition", () => {
 describe("GitHub MCP registry", () => {
     it("registers the adapter and transport recognizers", () => {
         expect(mcpTools.github.adapter).toBeInstanceOf(GithubMcpAdapter);
-        expect(mcpTools.github.service).toBe("github");
+        expect(mcpTools.github.service.service).toBe("github");
         expect(mcpTools.github.matchesCommand).toBe(matchesGithubMcpCommand);
         expect(mcpTools.github.matchesUrl).toBe(matchesGithubMcpUrl);
         expect(isMcpToolName("github")).toBe(true);

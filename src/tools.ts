@@ -25,8 +25,13 @@ export interface ServiceDefinition {
     policyConstraints(capability: CanonicalCapability): PolicyConstraintValue[];
 }
 
-export interface Tool<A extends Adapter<unknown>> extends ServiceDefinition {
+export interface Tool<A extends Adapter<unknown>> {
+    service: ServiceDefinition;
     adapter: A;
+}
+
+export interface CliTool extends Tool<CliAdapter> {
+    executable: string;
 }
 
 export interface McpTool extends Tool<McpAdapter> {
@@ -61,13 +66,6 @@ function staticService(
             });
         },
     };
-}
-
-function defineTool<A extends Adapter<unknown>>(
-    service: ServiceDefinition,
-    adapter: A,
-): Tool<A> {
-    return { ...service, adapter };
 }
 
 const gitActions = {
@@ -246,14 +244,27 @@ export const services = {
 } satisfies Record<string, ServiceDefinition>;
 
 export const cliTools = {
-    git: defineTool(services.git, new GitCliAdapter()),
-    gh: defineTool(services.github, new GithubCliAdapter()),
-    aws: defineTool(services.aws, new AwsCliAdapter()),
-} satisfies Record<string, Tool<CliAdapter>>;
+    git: {
+        service: services.git,
+        adapter: new GitCliAdapter(),
+        executable: "git",
+    },
+    gh: {
+        service: services.github,
+        adapter: new GithubCliAdapter(),
+        executable: "gh",
+    },
+    aws: {
+        service: services.aws,
+        adapter: new AwsCliAdapter(),
+        executable: "aws",
+    },
+} satisfies Record<string, CliTool>;
 
 export const mcpTools = {
     github: {
-        ...defineTool(services.github, new GithubMcpAdapter()),
+        service: services.github,
+        adapter: new GithubMcpAdapter(),
         matchesCommand: matchesGithubMcpCommand,
         matchesUrl: matchesGithubMcpUrl,
     },

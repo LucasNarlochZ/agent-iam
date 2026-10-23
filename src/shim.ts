@@ -40,10 +40,8 @@ function write(
 }
 
 export async function runShim(options: ShimOptions): Promise<number> {
-    const capability = await cliTools[options.tool].adapter.normalize(
-        options.args,
-        options.env,
-    );
+    const tool = cliTools[options.tool];
+    const capability = await tool.adapter.normalize(options.args, options.env);
 
     let policyPath = resolvePolicyPath(options.env);
     let decision: "ALLOW" | "DENY" = "DENY";
@@ -240,7 +238,7 @@ export async function runShim(options: ShimOptions): Promise<number> {
     }
     try {
         const executable = await resolveExecutable(
-            options.tool,
+            tool.executable,
             options.env.AGENTIAM_ORIGINAL_PATH ?? options.env.PATH ?? "",
         );
         const result = await spawnInherited(

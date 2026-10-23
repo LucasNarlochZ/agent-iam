@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import { toolNames } from "./tools.js";
+import { cliTools, toolNames } from "./tools.js";
 import {
     requestBrokerApproval,
     startApprovalBroker,
@@ -161,7 +161,7 @@ export async function runWithShims(
         const commandArgs = harness.commandArgs(args, childEnv);
         await Promise.all(
             toolNames.map(async (tool) => {
-                const path = join(directory, tool);
+                const path = join(directory, cliTools[tool].executable);
                 await writeFile(
                     path,
                     wrapper(nodePath, entrypoint, tool),
