@@ -92,6 +92,46 @@ async function setup(
 }
 
 describe("built MCP proxy", () => {
+    it("grants locally scoped permissions missing globally without allowing other repositories", async () => {
+        const fixture = await setup("allow: {}\ndeny: {}\n");
+        const path = join(fixture.project, ".agentiam", "policy.yaml");
+        await mkdir(join(fixture.project, ".agentiam"));
+        await writeFile(
+            path,
+            "allow:\n  github.file.read:\n    repos: [acme/backend]\n",
+        );
+        await fixture.connect();
+        expect(
+            await fixture.client.callTool({
+                name: "get_file_contents",
+                arguments: { owner: "acme", repo: "backend" },
+            }),
+        ).toMatchObject({
+            content: [{ type: "text", text: "upstream-result" }],
+        });
+        expect(
+            await fixture.client.callTool({
+                name: "get_file_contents",
+                arguments: { owner: "acme", repo: "other" },
+            }),
+        ).toMatchObject({ isError: true });
+        expect(await fixture.calls()).toHaveLength(1);
+        expect(await fixture.records()).toEqual([
+            expect.objectContaining({
+                decision: "ALLOW",
+                reasonCode: "allow_rule",
+                policyScope: "directory",
+                policyPath: path,
+            }),
+            expect.objectContaining({
+                decision: "DENY",
+                reasonCode: "constraint_mismatch",
+                policyScope: "directory",
+                policyPath: path,
+            }),
+        ]);
+    });
+
     it("automatically wraps a harness server and brokers audit records without changing its definition", async () => {
         const fixture = await setup();
         const bin = join(fixture.project, "bin");
