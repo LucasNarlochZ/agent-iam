@@ -7,12 +7,20 @@ import {
     CallToolRequestSchema,
     ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { appendAuditRecord, type AuditRecord } from "./audit.js";
-import { requestAuditWrite } from "./audit-broker.js";
-import { capability } from "./capability.js";
-import { evaluatePolicies } from "./policy/engine.js";
-import { loadPolicy, resolvePolicyPath, PolicyError } from "./policy/schema.js";
-import { registry, type McpToolName, type McpAuditToolName } from "./tools.js";
+import { appendAuditRecord, type AuditRecord } from "../audit/audit.js";
+import { requestAuditWrite } from "../audit/audit-broker.js";
+import { capability } from "../capability.js";
+import { evaluatePolicies } from "../policy/engine.js";
+import {
+    loadPolicy,
+    resolvePolicyPath,
+    PolicyError,
+} from "../policy/schema.js";
+import {
+    registry,
+    type McpToolName,
+    type McpAuditToolName,
+} from "../registry/builtins.js";
 
 export interface McpProxyOptions {
     env?: NodeJS.ProcessEnv;

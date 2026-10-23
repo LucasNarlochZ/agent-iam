@@ -4,7 +4,7 @@ import {
     capabilityDefinitionFor,
     registry,
     services,
-} from "../../src/tools.js";
+} from "../../src/registry/builtins.js";
 import {
     gitCommands,
     githubCommands,
@@ -14,7 +14,7 @@ import {
 describe("tool registry", () => {
     it("provides tool and capability metadata from one registry", async () => {
         const { capabilityDefinitionFor, isToolName } =
-            await import("../../src/tools.js");
+            await import("../../src/registry/builtins.js");
 
         expect(registry.listCli().map(([name]) => name)).toEqual([
             "git",

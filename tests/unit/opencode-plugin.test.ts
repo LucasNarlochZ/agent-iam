@@ -8,7 +8,7 @@ import type { CanonicalCapability } from "../../src/capability.js";
 import {
     requestBrokerApproval,
     sendApprovalChoice,
-} from "../../src/approval-broker.js";
+} from "../../src/approvals/approval-broker.js";
 
 afterEach(() => vi.unstubAllEnvs());
 

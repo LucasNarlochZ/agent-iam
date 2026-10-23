@@ -12,7 +12,7 @@ import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
-import { resolveExecutable } from "../../src/process.js";
+import { resolveExecutable } from "../../src/runtime/process.js";
 import { startScriptedResponses } from "../support/scripted-responses.js";
 import { startTerminal } from "../support/terminal.js";
 

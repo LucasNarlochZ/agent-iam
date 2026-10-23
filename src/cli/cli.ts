@@ -1,14 +1,19 @@
-import { constants } from "node:fs";
+import { constants, existsSync } from "node:fs";
 import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { resolvePolicyPath } from "./policy/schema.js";
+import { resolvePolicyPath } from "../policy/schema.js";
 import { inspect } from "./inspect.js";
-import { runShim } from "./shim.js";
-import { runWithShims } from "./runner.js";
-import { isToolName, isMcpToolName } from "./tools.js";
-import { serveMcpApprovals } from "./mcp-approval.js";
+import { runShim } from "../runtime/shim.js";
+import { runWithShims } from "../runtime/runner.js";
+import { isToolName, isMcpToolName } from "../registry/builtins.js";
+import { serveMcpApprovals } from "../mcp/mcp-approval.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { serveMcpProxy } from "./mcp-proxy.js";
+import { serveMcpProxy } from "../mcp/mcp-proxy.js";
+
+const packageRoot = new URL(
+    existsSync(new URL("../package.json", import.meta.url)) ? "../" : "../../",
+    import.meta.url,
+);
 
 interface Output {
     stdout: NodeJS.WritableStream;
@@ -55,7 +60,7 @@ export async function main(
             return 1;
         }
         const { version } = JSON.parse(
-            await readFile(new URL("../package.json", import.meta.url), "utf8"),
+            await readFile(new URL("package.json", packageRoot), "utf8"),
         );
         output.stdout.write(`${version}\n`);
         return 0;
@@ -69,7 +74,7 @@ export async function main(
         try {
             await mkdir(dirname(policyPath), { recursive: true });
             await copyFile(
-                new URL("../examples/policy.yaml", import.meta.url),
+                new URL("examples/policy.yaml", packageRoot),
                 policyPath,
                 constants.COPYFILE_EXCL,
             );

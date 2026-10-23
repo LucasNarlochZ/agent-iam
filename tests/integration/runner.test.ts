@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { runWithShims } from "../../src/runner.js";
+import { runWithShims } from "../../src/runtime/runner.js";
 
 describe("shim runner", () => {
     it("fails closed without an error before native approvals are available", async () => {

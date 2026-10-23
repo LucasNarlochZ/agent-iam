@@ -9,7 +9,7 @@ import {
     isMcpAuditToolName,
     isMcpToolName,
     registry,
-} from "../../src/tools.js";
+} from "../../src/registry/builtins.js";
 
 const adapter = new GithubMcpAdapter();
 const mappings = [

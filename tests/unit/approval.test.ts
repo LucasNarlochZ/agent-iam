@@ -7,12 +7,12 @@ import {
     persistApproval,
     requestApproval,
     selectWithArrowKeys,
-} from "../../src/approval.js";
+} from "../../src/approvals/approval.js";
 import { parsePolicy } from "../../src/policy/schema.js";
 
 describe("interactive approval", () => {
     it("provides an interactive approval prompt", async () => {
-        const approval = await import("../../src/approval.js");
+        const approval = await import("../../src/approvals/approval.js");
 
         expect(approval.requestApproval).toBeTypeOf("function");
         expect(approval.selectWithArrowKeys).toBeTypeOf("function");
@@ -98,7 +98,8 @@ describe("interactive approval", () => {
     });
 
     it("offers allow once without a policy rule", async () => {
-        const { approvalOptions } = await import("../../src/approval.js");
+        const { approvalOptions } =
+            await import("../../src/approvals/approval.js");
 
         expect(
             approvalOptions({

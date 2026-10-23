@@ -1,5 +1,5 @@
 import { capability, type CanonicalCapability } from "../capability.js";
-import { captureOutput, resolveExecutable } from "../process.js";
+import { captureOutput, resolveExecutable } from "../runtime/process.js";
 import type { CliAdapter } from "./interfaces.js";
 
 const valueOptions = new Set([

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { requestMcpApproval } from "../../src/mcp-approval.js";
+import { requestMcpApproval } from "../../src/mcp/mcp-approval.js";
 
 describe("MCP approval", () => {
     it("requests a native choice and returns the selected approval", async () => {

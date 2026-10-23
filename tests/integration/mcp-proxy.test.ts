@@ -14,7 +14,7 @@ import { join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { afterEach, describe, expect, it } from "vitest";
-import { runWithShims } from "../../src/runner.js";
+import { runWithShims } from "../../src/runtime/runner.js";
 
 const directories: string[] = [];
 const clients: Client[] = [];

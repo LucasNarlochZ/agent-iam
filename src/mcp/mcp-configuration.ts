@@ -1,4 +1,4 @@
-import { registry } from "./tools.js";
+import { registry } from "../registry/builtins.js";
 
 export function proxyMcpCommand(
     command: readonly string[],

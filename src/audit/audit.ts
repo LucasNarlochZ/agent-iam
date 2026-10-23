@@ -3,13 +3,13 @@ import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
-import type { CanonicalCapability } from "./capability.js";
+import type { CanonicalCapability } from "../capability.js";
 import {
     isToolName,
     isMcpAuditToolName,
     type ToolName,
     type McpAuditToolName,
-} from "./tools.js";
+} from "../registry/builtins.js";
 
 export type Decision = "ALLOW" | "DENY";
 

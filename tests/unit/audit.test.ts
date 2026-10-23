@@ -2,7 +2,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { appendAuditRecord, resolveAuditPath } from "../../src/audit.js";
+import { appendAuditRecord, resolveAuditPath } from "../../src/audit/audit.js";
 
 describe("audit log", () => {
     it("appends structured JSONL records without losing arguments", async () => {

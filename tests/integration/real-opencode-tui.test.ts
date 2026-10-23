@@ -13,7 +13,7 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { resolveExecutable } from "../../src/process.js";
+import { resolveExecutable } from "../../src/runtime/process.js";
 import { startTerminal } from "../support/terminal.js";
 
 const exec = promisify(execFile);

@@ -6,14 +6,14 @@ import { Plugin } from "@opencode/plugin";
 import {
     startApprovalBroker,
     startApprovalChoiceChannel,
-} from "../approval-broker.js";
-import { approvalOptions } from "../approval.js";
+} from "../approvals/approval-broker.js";
+import { approvalOptions } from "../approvals/approval.js";
 import {
     proxyMcpCommand,
     mcpProxyEnvironment,
     checkMcpUrl,
     warnUnproxiedMcp,
-} from "../mcp-configuration.js";
+} from "../mcp/mcp-configuration.js";
 
 const environmentKeys = [
     "PATH",

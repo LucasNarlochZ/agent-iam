@@ -3,22 +3,26 @@ import {
     isCapabilityKey,
     resolvePolicyPath,
     loadPolicy,
-} from "./policy/schema.js";
-import { evaluatePolicies } from "./policy/engine.js";
-import { appendAuditRecord, renderCommand, type AuditRecord } from "./audit.js";
-import { requestAuditWrite } from "./audit-broker.js";
+} from "../policy/schema.js";
+import { evaluatePolicies } from "../policy/engine.js";
+import {
+    appendAuditRecord,
+    renderCommand,
+    type AuditRecord,
+} from "../audit/audit.js";
+import { requestAuditWrite } from "../audit/audit-broker.js";
 import { resolveExecutable, spawnInherited } from "./process.js";
 import {
     persistApproval,
     requestApproval,
     type ApprovalChoice,
-} from "./approval.js";
-import type { CanonicalCapability } from "./capability.js";
-import { registry, type ToolName } from "./tools.js";
+} from "../approvals/approval.js";
+import type { CanonicalCapability } from "../capability.js";
+import { registry, type ToolName } from "../registry/builtins.js";
 import {
     requestBrokerApproval,
     requestFileApproval,
-} from "./approval-broker.js";
+} from "../approvals/approval-broker.js";
 
 export interface ShimOptions {
     tool: ToolName;

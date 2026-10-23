@@ -1,6 +1,6 @@
 import type { Plugin } from "@opencode/plugin/tui";
-import type { ApprovalChoice } from "../approval.js";
-import { sendApprovalChoice } from "../approval-broker.js";
+import type { ApprovalChoice } from "../approvals/approval.js";
+import { sendApprovalChoice } from "../approvals/approval-broker.js";
 
 type AgentIAMChoice = {
     label: string;

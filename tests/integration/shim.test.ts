@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Writable } from "node:stream";
 import { describe, expect, it } from "vitest";
-import { runShim } from "../../src/shim.js";
-import { resolveAuditPath } from "../../src/audit.js";
+import { runShim } from "../../src/runtime/shim.js";
+import { resolveAuditPath } from "../../src/audit/audit.js";
 
 async function fakeTool(directory: string, tool: string): Promise<string> {
     const path = join(directory, tool);

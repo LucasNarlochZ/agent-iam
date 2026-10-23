@@ -1,8 +1,8 @@
 import { createConnection, createServer } from "node:net";
-import type { CanonicalCapability } from "./capability.js";
+import type { CanonicalCapability } from "../capability.js";
 import { persistApproval, type ApprovalChoice } from "./approval.js";
-import { isCapabilityKey, loadPolicy } from "./policy/schema.js";
-import { requestFileBroker, startFileBroker } from "./file-broker.js";
+import { isCapabilityKey, loadPolicy } from "../policy/schema.js";
+import { requestFileBroker, startFileBroker } from "../ipc/file-broker.js";
 
 const choices = new Set<ApprovalChoice>([
     "allow",

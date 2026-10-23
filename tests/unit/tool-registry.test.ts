@@ -10,8 +10,11 @@ import {
     isMcpAuditToolName,
     capabilityDefinitionFor,
     serviceForCapability,
-} from "../../src/tools.js";
-import { proxyMcpCommand, checkMcpUrl } from "../../src/mcp-configuration.js";
+} from "../../src/registry/builtins.js";
+import {
+    proxyMcpCommand,
+    checkMcpUrl,
+} from "../../src/mcp/mcp-configuration.js";
 import { parsePolicy } from "../../src/policy/schema.js";
 
 describe("ToolRegistry", () => {

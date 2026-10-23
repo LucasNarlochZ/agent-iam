@@ -1,4 +1,4 @@
-import { main } from "./cli.js";
+import { main } from "./cli/cli.js";
 
 main(process.argv.slice(2))
     .then((code) => {

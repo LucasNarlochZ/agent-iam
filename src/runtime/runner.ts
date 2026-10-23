@@ -3,17 +3,17 @@ import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import { registry } from "./tools.js";
+import { registry } from "../registry/builtins.js";
 import {
     requestBrokerApproval,
     startApprovalBroker,
     startFileApprovalBroker,
-} from "./approval-broker.js";
-import { requestApproval, type ApprovalChoice } from "./approval.js";
-import type { CanonicalCapability } from "./capability.js";
+} from "../approvals/approval-broker.js";
+import { requestApproval, type ApprovalChoice } from "../approvals/approval.js";
+import type { CanonicalCapability } from "../capability.js";
 import { createShellEnvironment } from "./shell-environment.js";
-import { getHarnessAdapter } from "./harnesses/index.js";
-import { startAuditBroker } from "./audit-broker.js";
+import { getHarnessAdapter } from "../harnesses/index.js";
+import { startAuditBroker } from "../audit/audit-broker.js";
 
 export interface RunResult {
     code: number | null;

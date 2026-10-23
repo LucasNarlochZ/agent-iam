@@ -2,8 +2,8 @@ import {
     formatAuditRecord,
     readAuditRecords,
     resolveAuditPath,
-} from "./audit.js";
-import { loadPolicy, resolvePolicyPath } from "./policy/schema.js";
+} from "../audit/audit.js";
+import { loadPolicy, resolvePolicyPath } from "../policy/schema.js";
 
 export const inspectUsage =
     "Usage: agentiam inspect policy\n       agentiam inspect logs [--head [N] | --tail [N]] [--json]";

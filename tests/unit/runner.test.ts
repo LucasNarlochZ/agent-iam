@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 describe("agent runner", () => {
     it("injects the Agent IAM environment into Codex shell commands", async () => {
         const { commandArgsWithEnvironment } =
-            await import("../../src/runner.js");
+            await import("../../src/runtime/runner.js");
 
         expect(
             commandArgsWithEnvironment(

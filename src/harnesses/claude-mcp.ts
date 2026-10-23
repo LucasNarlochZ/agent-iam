@@ -5,7 +5,7 @@ import {
     mcpProxyEnvironment,
     proxyMcpCommand,
     warnUnproxiedMcp,
-} from "../mcp-configuration.js";
+} from "../mcp/mcp-configuration.js";
 import type { HarnessPreparationContext } from "./index.js";
 
 type Json = Record<string, unknown>;
