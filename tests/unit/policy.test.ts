@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { GitCliAdapter } from "../../src/adapters/git.js";
 import { parsePolicy } from "../../src/policy/schema.js";
 import { compilePolicy, escapePrologAtom } from "../../src/policy/compiler.js";
 import {
@@ -47,8 +48,10 @@ describe("policy schema", () => {
             parsePolicy("allow:\n  github.pr.unknown: true\n"),
         ).toThrow("Unknown capability 'github.pr.unknown'");
         expect(() =>
-            parsePolicy("allow:\n  git.commit:\n    branches:\n      - main\n"),
-        ).toThrow("Unknown constraint 'branches' for 'git.commit'");
+            parsePolicy(
+                "allow:\n  git.commit:\n    repos:\n      - owner/repo\n",
+            ),
+        ).toThrow("Unknown constraint 'repos' for 'git.commit'");
         expect(() =>
             parsePolicy("allow:\n  git.commit:\n    paths: src/**\n"),
         ).toThrow(
@@ -76,6 +79,129 @@ describe("policy compiler", () => {
 });
 
 describe("policy engine", () => {
+    it("allows a capability granted only by a directory policy and identifies its path", async () => {
+        expect(
+            await evaluatePolicies(
+                { allow: {}, deny: {} },
+                [{ allow: { "git.add": true }, deny: {} }],
+                { service: "git", action: "add", canonical: "git.add" },
+                {
+                    global: "/home/user/.agentiam/policy.yaml",
+                    directories: ["/project/.agentiam/policy.yaml"],
+                },
+            ),
+        ).toMatchObject({
+            decision: "ALLOW",
+            reasonCode: "allow_rule",
+            policyScope: "directory",
+            policyPath: "/project/.agentiam/policy.yaml",
+        });
+    });
+
+    it.each([
+        {
+            global: "allow: {}",
+            directories: [
+                "allow:\n  github.pr.merge:\n    repos: [owner/repo]",
+            ],
+            repository: "owner/repo",
+            decision: "ALLOW",
+        },
+        {
+            global: "allow: {}",
+            directories: [
+                "allow:\n  github.pr.merge:\n    repos: [owner/repo]",
+            ],
+            repository: "other/repo",
+            decision: "DENY",
+        },
+        {
+            global: "allow:\n  github.pr.merge:\n    repos: [other/repo]",
+            directories: [
+                "allow:\n  github.pr.merge:\n    repos: [owner/repo]",
+            ],
+            repository: "owner/repo",
+            decision: "ALLOW",
+        },
+        {
+            global: "allow:\n  github.pr.merge: true",
+            directories: [
+                "allow:\n  github.pr.merge:\n    repos: [other/repo]",
+            ],
+            repository: "owner/repo",
+            decision: "ALLOW",
+        },
+        {
+            global: "deny:\n  github.pr.merge: true",
+            directories: ["allow:\n  github.pr.merge: true"],
+            repository: "owner/repo",
+            decision: "DENY",
+        },
+        {
+            global: "deny:\n  github.pr.merge:\n    repos: [other/repo]",
+            directories: ["allow:\n  github.pr.merge: true"],
+            repository: "owner/repo",
+            decision: "ALLOW",
+        },
+        {
+            global: "allow: {}",
+            directories: [
+                "allow:\n  github.pr.merge: true",
+                "deny:\n  github.pr.merge: true",
+            ],
+            repository: "owner/repo",
+            decision: "DENY",
+        },
+        {
+            global: "allow: {}",
+            directories: [
+                "deny:\n  github.pr.merge: true",
+                "allow:\n  github.pr.merge: true",
+            ],
+            repository: "owner/repo",
+            decision: "DENY",
+        },
+        {
+            global: "allow: {}",
+            directories: [
+                "allow:\n  github.pr.merge: true\ndeny:\n  github.pr.merge:\n    repos: [owner/repo]",
+            ],
+            repository: "owner/repo",
+            decision: "DENY",
+        },
+        {
+            global: "allow: {}",
+            directories: [
+                "allow:\n  github.pr.merge:\n    repos: [other/repo]",
+                "allow:\n  github.pr.merge:\n    repos: [owner/repo]",
+            ],
+            repository: "owner/repo",
+            decision: "ALLOW",
+        },
+        {
+            global: "allow: {}",
+            directories: ["allow: {}", "allow: {}"],
+            repository: "owner/repo",
+            decision: "DENY",
+        },
+    ])(
+        "combines matching allows while preserving explicit denies ($decision, $global, $directories)",
+        async ({ global, directories, repository, decision }) => {
+            expect(
+                await evaluatePolicies(
+                    parsePolicy(global),
+                    directories.map(parsePolicy),
+                    {
+                        service: "github",
+                        action: "merge",
+                        canonical: "github.pr.merge",
+                        constraints: { repository },
+                    },
+                ),
+            ).toMatchObject({ decision });
+        },
+    );
+
     it.each([
         {
             policy: { allow: { "git.add": true as const }, deny: {} },
@@ -234,6 +360,71 @@ describe("policy engine", () => {
             decision: "DENY",
             reason: "no matching allow rule",
         });
+    });
+
+    it.each(["add", "commit"])(
+        "enforces branch allow rules for git %s",
+        async (action) => {
+            const policy = parsePolicy(
+                `allow:\n  git.${action}:\n    branches: [feature/work]\n`,
+            );
+            for (const branch of ["feature/work", "main", undefined]) {
+                const command = await new GitCliAdapter(
+                    async () => [],
+                    async () => branch,
+                ).normalize([action]);
+                expect((await evaluatePolicy(policy, command)).decision).toBe(
+                    branch === "feature/work" ? "ALLOW" : "DENY",
+                );
+            }
+        },
+    );
+
+    it.each(["add", "commit"])(
+        "enforces branch deny rules for git %s",
+        async (action) => {
+            const policy = parsePolicy(
+                `allow:\n  git.${action}: true\ndeny:\n  git.${action}:\n    branches: [main]\n`,
+            );
+            for (const branch of ["main", "feature/work"]) {
+                expect(
+                    (
+                        await evaluatePolicy(policy, {
+                            service: "git",
+                            action,
+                            canonical: `git.${action}`,
+                            constraints: { branches: [branch] },
+                        })
+                    ).decision,
+                ).toBe(branch === "main" ? "DENY" : "ALLOW");
+            }
+        },
+    );
+
+    it("requires both commit branch and path constraints to match", async () => {
+        const policy = parsePolicy(
+            "allow:\n  git.commit:\n    branches: [feature/work]\n    paths: [safe.txt]\n",
+        );
+        for (const [branch, path] of [
+            ["feature/work", "safe.txt"],
+            ["main", "safe.txt"],
+            ["feature/work", "other.txt"],
+        ]) {
+            expect(
+                (
+                    await evaluatePolicy(policy, {
+                        service: "git",
+                        action: "commit",
+                        canonical: "git.commit",
+                        constraints: { branches: [branch!], paths: [path!] },
+                    })
+                ).decision,
+            ).toBe(
+                branch === "feature/work" && path === "safe.txt"
+                    ? "ALLOW"
+                    : "DENY",
+            );
+        }
     });
 
     it("requires every Git path constraint to match the policy", async () => {

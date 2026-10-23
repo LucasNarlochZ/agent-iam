@@ -45,12 +45,12 @@ Control characters are escaped in formatted output so log content cannot insert 
 
 New authorization records include:
 
-- `requestId`: identifier shared with any approval outcome for the same CLI invocation.
+- `requestId`: identifier shared with any approval outcome for the same CLI invocation or MCP call.
 - `event`: `authorization` for the policy decision, `approval` for the later user/broker outcome, or `error` for a CLI normalization or execution error.
 - `decision`: `ALLOW` or `DENY` for that event, not proof of command success.
 - `reason`: a readable explanation, including expected and actual context for constraint mismatches.
 - `reasonCode`: a machine-readable category.
-- `policyPath`: the decisive policy file; directory denials identify the directory policy, not just the global file.
+- `policyPath`: the decisive policy file; directory grants and denials identify the directory policy, not just the global file.
 - `policyScope`: `global` or `directory` when evaluation reaches a policy decision.
 - `capability`, `tool`, `command`, `arguments`, and `timestamp`: the intercepted action and when authorization occurred.
 
@@ -58,25 +58,27 @@ Policy-loading failures may have no scope because evaluation did not complete. E
 
 ### Reason codes
 
-| Code                                       | Meaning                                                                     |
-| ------------------------------------------ | --------------------------------------------------------------------------- |
-| `allow_rule`                               | A matching allow rule authorized the action.                                |
-| `deny_rule`                                | A matching explicit global or directory deny blocked the action.            |
-| `no_allow_rule`                            | The policy has no allow rule for the capability; default deny applies.      |
-| `constraint_mismatch`                      | An allow rule exists but the action's context does not satisfy it.          |
-| `unsupported_capability`                   | The CLI capability or MCP tool/arguments are unsupported.                   |
-| `policy_error`                             | Policy loading or evaluation failed.                                        |
-| `allow_once`                               | The user allowed this invocation without changing policy.                   |
-| `approval_allow`, `approval_allow_context` | An allow rule was saved; the invocation remains denied and must be retried. |
-| `approval_deny`                            | The user saved an explicit deny rule.                                       |
-| `approval_skip`                            | Approval was skipped or unavailable; the action remains denied.             |
-| `approval_error`                           | A selected policy change could not be saved; the action remains denied.     |
-| `execution_error`                          | The CLI executable could not be resolved or started.                        |
-| `normalization_error`                      | The CLI adapter failed to identify the requested capability.                |
+| Code                                       | Meaning                                                                                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `allow_rule`                               | A matching allow rule authorized the action.                                                            |
+| `deny_rule`                                | A matching explicit global or directory deny blocked the action.                                        |
+| `no_allow_rule`                            | The policy has no allow rule for the capability; default deny applies.                                  |
+| `constraint_mismatch`                      | An allow rule exists but the action's context does not satisfy it.                                      |
+| `unsupported_capability`                   | The CLI capability or MCP tool/arguments are unsupported.                                               |
+| `policy_error`                             | Policy loading or evaluation failed.                                                                    |
+| `allow_once`                               | The user allowed this invocation without changing policy.                                               |
+| `approval_allow`, `approval_allow_context` | An allow rule was saved; the invocation remains denied and must be retried.                             |
+| `approval_deny`, `approval_deny_context`   | The user saved an unrestricted or scoped explicit deny rule.                                            |
+| `approval_skip`                            | Approval was skipped or unavailable; the action remains denied.                                         |
+| `approval_error`                           | Approval failed, was cancelled, timed out, or could not be saved or audited; the action remains denied. |
+| `execution_error`                          | The CLI executable could not be resolved or started.                                                    |
+| `normalization_error`                      | The CLI adapter failed to identify the requested capability.                                            |
 
 ## Policy decisions versus approval outcomes
 
 A default denial can produce two events with the same `requestId`: the initial `authorization` decision and the later `approval` outcome. An allow-once outcome records `ALLOW` before execution. Saving a permanent allow records `DENY` for the current invocation and explains that a retry is required. Approval events include the selected `approval` choice.
+
+Intercepted GitHub MCP calls use the same event correlation and approval reason codes, with `tool: "github-mcp"`. Declining or cancelling an elicitation form maps to **Skip**; request cancellation, timeout, and protocol failures use `approval_error` when auditing remains available. Clients without form elicitation support produce only the initial authorization event.
 
 Filter by `event` when counting policy decisions; counting every record counts approval outcomes too. An audit-write failure blocks execution and is reported on stderr; an unavailable log cannot reliably record its own failure. An earlier authorization record can remain even if a later approval audit write fails. Policy changes already saved are not rolled back in that case.
 

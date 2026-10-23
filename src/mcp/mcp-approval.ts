@@ -6,9 +6,10 @@ import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { once } from "node:events";
 import { startApprovalBroker } from "../approvals/approval-broker.js";
 import {
-    approvalMessage,
-    approvalOptions,
-    type ApprovalChoice,
+    createApprovalPlan,
+    selectApproval,
+    type ApprovalContext,
+    type ApprovalDecision,
 } from "../approvals/approval.js";
 
 interface ElicitationRequest {
@@ -20,7 +21,7 @@ interface ElicitationRequest {
             choice: {
                 type: "string";
                 title: string;
-                oneOf: Array<{ const: ApprovalChoice; title: string }>;
+                oneOf: Array<{ const: string; title: string }>;
             };
         };
         required: ["choice"];
@@ -34,53 +35,51 @@ interface ElicitationResponse {
 
 type Elicit = (request: ElicitationRequest) => Promise<ElicitationResponse>;
 
-const choices = new Set<ApprovalChoice>([
-    "allow",
-    "allow-context",
-    "allow-once",
-    "deny",
-    "skip",
-]);
-
 export async function requestMcpApproval(
     capability: CanonicalCapability,
     elicit: Elicit,
-): Promise<ApprovalChoice> {
-    const response = await elicit({
-        mode: "form",
-        message: approvalMessage(capability),
-        requestedSchema: {
-            type: "object",
-            properties: {
-                choice: {
-                    type: "string",
-                    title: "Agent IAM policy decision",
-                    oneOf: approvalOptions(capability).map(
-                        ({ label, value }) => ({
-                            const: value,
-                            title: label,
-                        }),
-                    ),
+    context?: ApprovalContext,
+): Promise<ApprovalDecision> {
+    return selectApproval(
+        await createApprovalPlan(capability, context),
+        async (message, choices) => {
+            const response = await elicit({
+                mode: "form",
+                message,
+                requestedSchema: {
+                    type: "object",
+                    properties: {
+                        choice: {
+                            type: "string",
+                            title: "Agent IAM policy decision",
+                            oneOf: choices.map(({ label, value }) => ({
+                                const: value,
+                                title: label,
+                            })),
+                        },
+                    },
+                    required: ["choice"],
                 },
-            },
-            required: ["choice"],
+            });
+            const choice = response.content?.choice;
+            return response.action === "accept" &&
+                typeof choice === "string" &&
+                choices.some(({ value }) => value === choice)
+                ? choice
+                : "skip";
         },
-    });
-    const choice = response.content?.choice;
-    return response.action === "accept" &&
-        typeof choice === "string" &&
-        choices.has(choice as ApprovalChoice)
-        ? (choice as ApprovalChoice)
-        : "skip";
+    );
 }
 
 export function startMcpApprovalSocket(
     path: string,
     server: McpServer,
 ): Promise<{ close(): Promise<void> }> {
-    return startApprovalBroker(path, (capability) =>
-        requestMcpApproval(capability, (request) =>
-            server.server.elicitInput(request),
+    return startApprovalBroker(path, (capability, context) =>
+        requestMcpApproval(
+            capability,
+            (request) => server.server.elicitInput(request),
+            context,
         ),
     );
 }

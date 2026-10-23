@@ -7,7 +7,7 @@ agentiam init
 agentiam inspect policy
 ```
 
-`init` does not overwrite an existing policy. `inspect policy` shows the global policy and its constraints, not a merged view of directory restrictions. Bare `agentiam inspect` now prints subcommand usage; use `agentiam inspect policy` in existing scripts.
+`init` does not overwrite an existing policy. `inspect policy` shows the global policy and its constraints, not a merged view of directory policies. Bare `agentiam inspect` now prints subcommand usage; use `agentiam inspect policy` in existing scripts.
 
 ## Allow and deny rules
 
@@ -31,13 +31,39 @@ An explicit deny always wins over an allow. Unmatched capabilities are denied. C
 
 Use `true` for a capability-wide rule. Contextual rules can constrain supported capabilities by repository, current branch, or staged paths. See [supported commands](CAPABILITIES.md) for where each constraint is available. GitHub repository constraints are compared case-insensitively across CLI and MCP calls.
 
+## Git branch constraints
+
+Use `branches` to restrict `git.add` and `git.commit` to named branches:
+
+```yaml
+allow:
+    git.add:
+        branches: [feature/work]
+    git.commit:
+        branches: [feature/work]
+```
+
+This example does not allow these actions on other branches or when branch detection fails. A separate capability-wide allow can still grant permission. To block commits on protected branches regardless of other allows, use an explicit deny:
+
+```yaml
+deny:
+    git.commit:
+        branches: [main, master]
+```
+
+Branch names are matched exactly, not as glob patterns. These constraints use the current branch, not a push destination. For `git.commit`, a rule may include both `branches` and `paths`; both must match.
+
 ## Directory policies
 
-Agent IAM also reads `.agentiam/policy.yaml` from the current directory and each parent directory. These policies can only add restrictions to the global policy:
+Agent IAM also reads `.agentiam/policy.yaml` from the current directory and each parent directory. Rules from all applicable policies are evaluated together:
 
-- Deny rules block additional matching actions.
-- Allow rules add required constraints to actions already allowed globally.
-- A directory policy cannot allow an action denied or omitted globally.
+- A matching explicit deny in any global or directory policy blocks the action, regardless of allow rules elsewhere.
+- Otherwise, a matching allow in any applicable policy grants permission, including when the global policy omits the action or its allow constraints do not match.
+- Without any matching allow, the action remains denied.
+
+Allow rules are additive: a narrower directory allow does not restrict a broader global or ancestor allow. Use explicit deny rules to block actions. Review directory policies before running an agent in a repository, because they can grant permissions.
+
+Use `agentiam init --local` to create `.agentiam/policy.yaml` in the current directory. The global policy is still required.
 
 For example, this project policy prevents merges even when the global policy allows them:
 
@@ -50,19 +76,22 @@ An invalid directory policy fails closed and denies the action.
 
 ## Interactive approvals
 
-When a supported CLI capability has no matching allow rule, Agent IAM can prompt for approval. Use the arrow keys to select an option and Enter to confirm. Escape or Ctrl+C selects **Skip**.
+When a supported capability has no matching allow rule, Agent IAM can prompt for approval. CLI commands use a terminal or native approval bridge; intercepted GitHub MCP calls use the MCP client's form elicitation interface. In the terminal, use the arrow keys to select an option and Enter to confirm. Escape or Ctrl+C selects **Skip**.
 
-Depending on the available context and agent interface, choices include:
+Approval takes at most three questions. The first offers:
 
-- **Allow this capability**: save an unrestricted allow rule.
-- **Allow for this context**: save an allow rule for the current repository, branch, or staged paths.
-- **Allow once**: run the denied command without changing policy, when offered by the interface.
-- **Explicitly deny**: save a deny rule.
+- **Allow permanently**: save an allow rule after choosing its scope and destination.
+- **Allow once**: run the denied command or MCP call without changing policy or asking further questions.
+- **Deny permanently**: save a deny rule after choosing its scope and destination.
 - **Skip**: leave policy unchanged and keep the command denied.
 
-Persistent choices update `~/.agentiam/policy.yaml`. Saving an allow rule does not execute the denied command; retry it to apply the change. **Allow once** is the exception: it permits that invocation without saving a rule.
+For permanent decisions, the second question offers all contexts of the action or a supported restriction, such as the current repository, branch, or staged paths. Actions without available scope controls skip this question.
 
-Existing explicit denies do not prompt. Unsupported capabilities, invalid policies, and audit failures deny without prompting. GitHub MCP tool calls also deny without interactive approval; configure their rules beforehand.
+If the command's current directory contains `.agentiam/policy.yaml`, the final question offers the global and local policies, showing each full path. Otherwise, rules are saved to `~/.agentiam/policy.yaml` without a destination question. Ancestor-directory policies are not offered as local destinations. Cancelling any question leaves policy unchanged.
+
+Local allow rules can grant missing global permissions, but cannot override matching explicit denies in any applicable policy. Saving an allow rule does not execute the denied command or MCP call; retry it to apply the change. **Allow once** is the exception: it permits that invocation without saving a rule.
+
+Existing explicit denies do not prompt. Unsupported capabilities, invalid policies, and audit failures deny without prompting. GitHub MCP approvals require a client advertising form elicitation support; clients without it remain denied unless a policy rule already allows the call. MCP approval cancellation, timeout, persistence errors, or failed audit writes also leave the call denied. See [MCP approvals](MCP.md#interactive-approvals) for details.
 
 When running directly in a terminal, both stdin and stderr must be attached to a TTY. Wrapped agents can use a parent terminal or a native approval bridge. If neither is available, the action remains denied. See [agent integrations](INTEGRATIONS.md) for native-interface requirements.
 

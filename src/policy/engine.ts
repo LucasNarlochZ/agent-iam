@@ -1,6 +1,6 @@
 import pl from "tau-prolog";
 import type { CanonicalCapability } from "../capability.js";
-import type { CapabilityKey, Policy, PolicyRules } from "./schema.js";
+import type { Policy } from "./schema.js";
 import { compilePolicy, escapePrologAtom } from "./compiler.js";
 import {
     capabilityDefinitionFor,
@@ -162,39 +162,31 @@ export async function evaluatePolicies(
         "global",
         paths?.global,
     );
-    if (globalDecision.decision === "DENY") return globalDecision;
+    if (
+        globalDecision.reasonCode === "deny_rule" ||
+        globalDecision.reasonCode === "unsupported_capability"
+    )
+        return globalDecision;
 
-    const key = capability.canonical as CapabilityKey;
+    let result = globalDecision;
+    const key = capability.canonical;
     for (const [index, policy] of directoryPolicies.entries()) {
-        if (policy.deny[key] !== undefined) {
-            const decision = await evaluatePolicy(
-                {
-                    allow: { [key]: true } as PolicyRules,
-                    deny: policy.deny,
-                },
-                capability,
-            );
-            if (decision.decision === "DENY")
-                return explain(
-                    decision,
-                    policy,
-                    "directory",
-                    paths?.directories[index],
-                );
-        }
-        if (policy.allow[key] !== undefined) {
-            const decision = await evaluatePolicy(
-                { allow: policy.allow, deny: {} },
-                capability,
-            );
-            if (decision.decision === "DENY")
-                return explain(
-                    decision,
-                    policy,
-                    "directory",
-                    paths?.directories[index],
-                );
-        }
+        if (policy.deny[key] === undefined && policy.allow[key] === undefined)
+            continue;
+        const decision = explain(
+            await evaluatePolicy(policy, capability),
+            policy,
+            "directory",
+            paths?.directories[index],
+        );
+        if (decision.reasonCode === "deny_rule") return decision;
+        if (
+            result.decision !== "ALLOW" &&
+            (decision.decision === "ALLOW" ||
+                (result.reasonCode === "no_allow_rule" &&
+                    decision.reasonCode === "constraint_mismatch"))
+        )
+            result = decision;
     }
-    return globalDecision;
+    return result;
 }

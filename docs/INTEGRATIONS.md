@@ -29,7 +29,7 @@ Agent IAM detects the installed OpenCode CLI version:
 
 Both versions reject `--server` and `--attach` connections. Existing OpenCode configuration stays in place; the V2 plugin is added only for the wrapped process. If `OPENCODE_CONFIG_CONTENT` is set, it must contain a JSON object.
 
-The V2 TUI dialog offers **Allow this capability**, **Allow for this context** when available, **Explicitly deny**, and **Skip**. Allow and deny choices persist a policy rule; retry after saving an allow. If the custom dialog is unavailable, OpenCode's native permission prompt provides its standard approve/reject choices as a fallback.
+The V2 TUI uses the same [approval questions](POLICIES.md#interactive-approvals) as the terminal: choose **Allow permanently**, **Allow once**, **Deny permanently**, or **Skip**, then choose an action scope and policy destination when applicable. Retry after saving a permanent allow. If the custom dialog is unavailable, approval through OpenCode's standard permission prompt allows only that invocation and does not save a policy rule.
 
 Approvals are tied to the invoking tool's session, and the OpenCode interface is not paused. Commands outside a tool execution cannot use this bridge and remain denied when no rule allows them. The V2 integration is tested with OpenCode 2.0.29.
 

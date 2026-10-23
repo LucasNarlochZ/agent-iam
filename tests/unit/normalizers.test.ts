@@ -56,7 +56,7 @@ describe("command adapters", () => {
         ).toBe("git.commit");
         expect(
             (await gitAdapter.normalize(["commit", "-m", "fix"])).constraints,
-        ).toEqual({ paths: ["src/policy.ts"] });
+        ).toEqual({ paths: ["src/policy.ts"], branches: ["main"] });
         expect((await gitAdapter.normalize(["remote", "-v"])).canonical).toBe(
             "git.remote",
         );
@@ -96,6 +96,63 @@ describe("command adapters", () => {
             "git.unknown",
         );
     });
+
+    it.each(["add", "commit"])(
+        "includes the current branch for git %s",
+        async (action) => {
+            const adapter = new GitCliAdapter(
+                async () => [],
+                async () => "feature/work",
+            );
+            await expect(adapter.normalize([action])).resolves.toMatchObject({
+                constraints: { branches: ["feature/work"] },
+            });
+        },
+    );
+
+    it.each(["add", "commit"])(
+        "omits unavailable branch context for git %s",
+        async (action) => {
+            const adapter = new GitCliAdapter(
+                async () => [],
+                async () => undefined,
+            );
+            expect(
+                (await adapter.normalize([action])).constraints,
+            ).toBeUndefined();
+        },
+    );
+
+    it("keeps staged paths when the commit branch is unavailable", async () => {
+        const adapter = new GitCliAdapter(
+            async () => ["safe.txt"],
+            async () => undefined,
+        );
+        expect((await adapter.normalize(["commit"])).constraints).toEqual({
+            paths: ["safe.txt"],
+        });
+    });
+
+    it.each(["add", "commit"])(
+        "uses leading Git options to read the branch for git %s",
+        async (action) => {
+            const bin = await mkdtemp(join(tmpdir(), "agentiam-git-context-"));
+            const git = join(bin, "git");
+            await writeFile(
+                git,
+                '#!/bin/sh\nif [ "$1" = "-C" ] && [ "$2" = "/target" ] && [ "$3" = "branch" ]; then printf "feature/target\\n"; fi\n',
+            );
+            await chmod(git, 0o755);
+            await expect(
+                new GitCliAdapter().normalize(["-C", "/target", action], {
+                    PATH: bin,
+                    AGENTIAM_ORIGINAL_PATH: bin,
+                }),
+            ).resolves.toMatchObject({
+                constraints: { branches: ["feature/target"] },
+            });
+        },
+    );
 
     it("normalizes gh commands", async () => {
         const ghAdapter = new GithubCliAdapter();

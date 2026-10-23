@@ -14,6 +14,7 @@ describe("OpenCode TUI approval plugin", () => {
         ["allow-context", "once"],
         ["allow-once", "once"],
         ["deny", "reject"],
+        ["deny-context", "reject"],
         ["skip", "reject"],
     ] as const)("forwards %s and replies %s", async (choice, decision) => {
         const directory = await mkdtemp(join(tmpdir(), "agentiam-tui-"));
@@ -21,7 +22,11 @@ describe("OpenCode TUI approval plugin", () => {
         const channel = await startApprovalChoiceChannel(path);
         let permissionAsked: ((event: any) => void) | undefined;
         const reply = vi.fn(async () => {});
-        const select = vi.fn(async () => choice);
+        const contextual = choice.endsWith("-context");
+        const select = vi
+            .fn()
+            .mockResolvedValueOnce(contextual ? choice.split("-")[0] : choice)
+            .mockResolvedValueOnce("branches");
         const cleanup = plugin.setup({
             data: {
                 on: (_type: string, callback: typeof permissionAsked) => {
@@ -43,12 +48,27 @@ describe("OpenCode TUI approval plugin", () => {
                     agentiamApproval: {
                         socket: path,
                         choices: [{ label: "Choice", value: choice }],
+                        plan: {
+                            message: "Agent IAM approval: git.push",
+                            scopes: contextual
+                                ? [
+                                      {
+                                          label: "Only main",
+                                          value: "branches",
+                                          constraints: ["branches"],
+                                      },
+                                  ]
+                                : [],
+                            policies: [],
+                        },
                     },
                 },
             },
         });
 
-        await expect(channel.choice).resolves.toBe(choice);
+        await expect(channel.choice).resolves.toEqual(
+            contextual ? { choice, scope: ["branches"] } : choice,
+        );
         await vi.waitFor(() =>
             expect(reply).toHaveBeenCalledWith({
                 sessionID: "ses_one",
@@ -58,7 +78,12 @@ describe("OpenCode TUI approval plugin", () => {
         );
         expect(select).toHaveBeenCalledWith({
             title: "Agent IAM approval: git.push",
-            options: [{ title: "Choice", value: choice }],
+            options: [
+                { title: "Allow permanently", value: "allow" },
+                { title: "Allow once", value: "allow-once" },
+                { title: "Deny permanently", value: "deny" },
+                { title: "Skip", value: "skip" },
+            ],
         });
         if (typeof cleanup === "function") await cleanup();
         await channel.close();

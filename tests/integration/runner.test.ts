@@ -7,6 +7,76 @@ import { describe, expect, it } from "vitest";
 import { runWithShims } from "../../src/runtime/runner.js";
 
 describe("shim runner", () => {
+    it("executes a retry after saving a local allow without prompting again", async () => {
+        const home = await mkdtemp(join(tmpdir(), "agentiam-local-retry-"));
+        const bin = join(home, "bin");
+        const project = join(home, "project");
+        const localPath = join(project, ".agentiam", "policy.yaml");
+        const globalPath = join(home, ".agentiam", "policy.yaml");
+        const output = join(home, "executed");
+        await mkdir(bin);
+        await mkdir(join(home, ".agentiam"));
+        await mkdir(join(project, ".agentiam"), { recursive: true });
+        await writeFile(globalPath, "allow: {}\ndeny: {}\n");
+        await writeFile(localPath, "allow: {}\ndeny: {}\n");
+        await writeFile(
+            join(bin, "git"),
+            '#!/bin/sh\nif [ "$1" = "branch" ]; then printf "feature/work\\n"; exit 0; fi\nprintf executed > "$AGENTIAM_TEST_OUTPUT"\n',
+        );
+        await chmod(join(bin, "git"), 0o755);
+        const agent = join(bin, "agent");
+        await writeFile(
+            agent,
+            '#!/bin/sh\ncd "$AGENTIAM_TEST_PROJECT"\ngit add .\n',
+        );
+        await chmod(agent, 0o755);
+        let prompts = 0;
+        const options = {
+            entrypoint: resolve("dist/index.js"),
+            cwd: home,
+            env: {
+                HOME: home,
+                PATH: bin,
+                AGENTIAM_TEST_PROJECT: project,
+                AGENTIAM_TEST_OUTPUT: output,
+            },
+            approvalPrompt: async () => {
+                prompts++;
+                return { choice: "allow" as const, policyPath: localPath };
+            },
+        };
+        expect(await runWithShims(agent, [], options)).toEqual({
+            code: 126,
+            signal: null,
+        });
+        await expect(readFile(output)).rejects.toMatchObject({
+            code: "ENOENT",
+        });
+        expect(await readFile(localPath, "utf8")).toContain("git.add: true");
+        expect(await runWithShims(agent, [], options)).toEqual({
+            code: 0,
+            signal: null,
+        });
+        expect(prompts).toBe(1);
+        expect(await readFile(output, "utf8")).toBe("executed");
+        expect(await readFile(globalPath, "utf8")).toBe(
+            "allow: {}\ndeny: {}\n",
+        );
+        const records = (
+            await readFile(join(home, ".agentiam/audit.jsonl"), "utf8")
+        )
+            .trim()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+        expect(records.at(-1)).toMatchObject({
+            event: "authorization",
+            decision: "ALLOW",
+            reasonCode: "allow_rule",
+            policyScope: "directory",
+            policyPath: localPath,
+        });
+    });
+
     it("fails closed without an error before native approvals are available", async () => {
         const home = await mkdtemp(join(tmpdir(), "agentiam-run-home-"));
         const bin = await mkdtemp(join(tmpdir(), "agentiam-run-bin-"));

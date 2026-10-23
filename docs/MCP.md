@@ -2,7 +2,7 @@
 
 Agent IAM can authorize supported official GitHub MCP tools using the same GitHub capabilities and repository constraints as its CLI adapter. Both the client and upstream connection use stdio; HTTP transport is not exposed by the CLI.
 
-Configure [policy rules](POLICIES.md) before calling tools: MCP denials do not trigger interactive policy approval.
+Allow calls through [policy rules](POLICIES.md), or build permissions interactively when your MCP client supports form elicitation. Explicit denies never prompt.
 
 ## Automatic wrapping
 
@@ -59,6 +59,19 @@ For other clients or commands that cannot be discovered automatically, configure
 
 Install the official `github-mcp-server` separately and supply credentials through your client's environment or secret configuration. The upstream command inherits the proxy's environment and launches directly without a shell. For Docker installations, use `docker` as the upstream command and pass the appropriate `run --rm -i` arguments after `--`.
 
+## Interactive approvals
+
+When a supported call has no matching allow rule, including a repository constraint mismatch, the proxy can ask through the client's MCP form elicitation interface. It offers the same [approval choices](POLICIES.md#interactive-approvals) as CLI interception: **Allow permanently**, **Allow once**, **Deny permanently**, and **Skip**, followed by scope and policy destination questions when applicable.
+
+- **Allow once** forwards only the pending call, after recording approval, without changing policy.
+- A permanent allow saves the rule but leaves the pending call denied. Retry the call to use the rule; matching CLI actions can use it too.
+- Permanent decisions can apply to all repositories or the current repository. The destination can be the global policy or an existing policy in the effective project directory.
+- Explicit denies, unsupported tools or arguments, invalid policies, and initial audit failures never prompt.
+
+The client must advertise MCP form elicitation support and allow the user to answer. There is no terminal fallback on the proxy's stdio connection. Without form support, configure policy rules before calling tools. Native tool permissions are separate: an agent's own approval does not bypass Agent IAM policy.
+
+Approvals are tied to the pending tool request and serialized within each proxy. The proxy imposes a five-minute deadline, including time waiting for another approval; a client's tool timeout may be shorter. Cancellation, timeout, malformed responses, policy-save errors, and audit failures leave the call denied. Policy is checked again after approval so an explicit deny added while the question is open still wins. Upstream failures are never automatically retried.
+
 ## Supported tools
 
 Only these official GitHub MCP tools are exposed:
@@ -98,7 +111,7 @@ deny:
     github.pr.merge: true
 ```
 
-Policy is reloaded for every call. Directory restrictions use the proxy's working directory, not a path supplied by the caller. Calls without a matching allow, unsupported tools or arguments, invalid policies, and audit failures are denied without interactive approval. Denials return an MCP tool error and never invoke the upstream tool.
+Policy is reloaded for every call. Directory policies use the proxy's working directory, not a path supplied by the caller. A matching local allow can authorize a call without a global allow; matching explicit denies in any applicable policy still win. Calls without a matching allow can request [interactive approval](#interactive-approvals). Unsupported tools or arguments, invalid policies, and audit failures remain denied. Denials return an MCP tool error and never invoke the upstream tool.
 
 Tool discovery is not filtered by current policy. Resources, prompts, and upstream-initiated requests are not proxied. Authorization is audited before forwarding; failed upstream calls are not retried. See [architecture](ARCHITECTURE.md#mcp-authorization-flow) for execution and audit semantics.
 

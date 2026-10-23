@@ -30,7 +30,9 @@ show stash status submodule switch symbolic-ref tag worktree
 
 Permissions apply to the whole subcommand, including flags and nested operations. For example, allowing `git.branch` also allows branch deletion.
 
-`git.commit` supports `paths` constraints based on staged paths. `git.push` supports `branches` constraints based on the current branch. Other Git capabilities are capability-wide.
+`git.add`, `git.commit`, and `git.push` support `branches` constraints based on the current branch. `git.commit` also supports `paths` constraints based on staged paths; when both constraints appear in a rule, both must match. Context lookups respect leading Git options such as `-C` and `--git-dir`. Other Git capabilities are capability-wide.
+
+Branch-constrained allow rules do not match when the current branch is unavailable, including detached HEAD. Branch-constrained deny rules also do not match without branch context; they do not block a separate capability-wide allow. See [branch policy examples](POLICIES.md#git-branch-constraints).
 
 ## GitHub CLI
 

@@ -13,9 +13,10 @@ import {
 import { requestAuditWrite } from "../audit/audit-broker.js";
 import { resolveExecutable, spawnInherited } from "./process.js";
 import {
-    persistApproval,
+    approvalChoice,
+    persistApprovalDecision,
     requestApproval,
-    type ApprovalChoice,
+    type ApprovalDecision,
 } from "../approvals/approval.js";
 import {
     capability as unknownCapability,
@@ -36,7 +37,7 @@ export interface ShimOptions {
     stderr?: NodeJS.WritableStream;
     promptForApproval?: (
         capability: CanonicalCapability,
-    ) => Promise<ApprovalChoice>;
+    ) => Promise<ApprovalDecision>;
 }
 
 function write(
@@ -144,6 +145,10 @@ export async function runShim(options: ShimOptions): Promise<number> {
             const parentPersistsApproval =
                 options.promptForApproval === undefined &&
                 Boolean(options.env.AGENTIAM_APPROVAL_DIRECTORY);
+            const context = {
+                cwd: options.cwd ?? process.cwd(),
+                globalPolicyPath: loadedPolicy.path,
+            };
             let unavailableReason: string | undefined;
             const prompt =
                 options.promptForApproval ??
@@ -153,19 +158,21 @@ export async function runShim(options: ShimOptions): Promise<number> {
                             return await requestFileApproval(
                                 options.env.AGENTIAM_APPROVAL_DIRECTORY,
                                 requested,
+                                context,
                             );
                         }
                         if (options.env.AGENTIAM_APPROVAL_SOCKET) {
                             return await requestBrokerApproval(
                                 options.env.AGENTIAM_APPROVAL_SOCKET,
                                 requested,
+                                context,
                             );
                         }
                         if (!process.stdin.isTTY || !process.stderr.isTTY) {
                             unavailableReason =
                                 "approval unavailable: no interactive terminal";
                         }
-                        return await requestApproval(requested);
+                        return await requestApproval(requested, { context });
                     } catch (error) {
                         unavailableReason = `approval broker unavailable: ${error instanceof Error ? error.message : String(error)}`;
                         write(
@@ -175,14 +182,20 @@ export async function runShim(options: ShimOptions): Promise<number> {
                         return "skip" as const;
                     }
                 });
-            const choice = await prompt(capability);
+            const selected = await prompt(capability);
+            const choice = approvalChoice(selected);
+            let approvalPath =
+                typeof selected === "string"
+                    ? loadedPolicy.path
+                    : (selected.policyPath ?? loadedPolicy.path);
+            const approvalScope =
+                approvalPath === loadedPolicy.path ? "global" : "directory";
             try {
                 if (!parentPersistsApproval) {
-                    await persistApproval(
-                        loadedPolicy.path,
-                        loadedPolicy.policy,
+                    approvalPath = await persistApprovalDecision(
+                        context,
                         capability,
-                        choice,
+                        selected,
                     );
                 }
             } catch (error) {
@@ -195,8 +208,8 @@ export async function runShim(options: ShimOptions): Promise<number> {
                         decision: "DENY",
                         event: "approval",
                         approval: choice,
-                        policyPath: loadedPolicy.path,
-                        policyScope: "global",
+                        policyPath: approvalPath,
+                        policyScope: approvalScope,
                         reasonCode: "approval_error",
                         reason: `approval could not be saved: ${message}`,
                     });
@@ -213,9 +226,9 @@ export async function runShim(options: ShimOptions): Promise<number> {
                 choice === "allow-once"
                     ? "user approved this invocation once; policy unchanged"
                     : choice === "allow" || choice === "allow-context"
-                      ? `allow rule saved to ${loadedPolicy.path}; command remains denied, retry required`
-                      : choice === "deny"
-                        ? `user saved an explicit deny rule to ${loadedPolicy.path}`
+                      ? `allow rule saved to ${approvalPath}; command remains denied, retry required`
+                      : choice === "deny" || choice === "deny-context"
+                        ? `user saved an explicit deny rule to ${approvalPath}`
                         : `${unavailableReason ?? "approval skipped or unavailable"}; command remains denied`;
             try {
                 await audit({
@@ -224,8 +237,8 @@ export async function runShim(options: ShimOptions): Promise<number> {
                     decision: choice === "allow-once" ? "ALLOW" : "DENY",
                     event: "approval",
                     approval: choice,
-                    policyPath: loadedPolicy.path,
-                    policyScope: "global",
+                    policyPath: approvalPath,
+                    policyScope: approvalScope,
                     reasonCode:
                         choice === "allow-once"
                             ? "allow_once"
@@ -248,12 +261,12 @@ export async function runShim(options: ShimOptions): Promise<number> {
             } else if (choice === "allow" || choice === "allow-context") {
                 write(
                     options.stderr,
-                    `[agentiam] Saved allow rule to ${loadedPolicy.path}; retry the command to apply it`,
+                    `[agentiam] Saved allow rule to ${approvalPath}; retry the command to apply it`,
                 );
-            } else if (choice === "deny") {
+            } else if (choice === "deny" || choice === "deny-context") {
                 write(
                     options.stderr,
-                    `[agentiam] Saved deny rule to ${loadedPolicy.path}`,
+                    `[agentiam] Saved deny rule to ${approvalPath}`,
                 );
             } else if (
                 choice === "skip" &&

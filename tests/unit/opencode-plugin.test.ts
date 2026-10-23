@@ -85,7 +85,7 @@ describe("OpenCode approval plugin", () => {
                     ),
                 ),
             ),
-        ).toEqual(["allow", "allow"]);
+        ).toEqual(["allow-once", "allow-once"]);
         expect(
             assert.mock.calls.map(([input]: any) => input.sessionID).sort(),
         ).toEqual(["ses_one", "ses_two"]);
@@ -125,11 +125,12 @@ describe("OpenCode approval plugin", () => {
         expect(assert.mock.calls[0]![0].metadata).toMatchObject({
             agentiamApproval: {
                 choices: [
-                    { label: "Allow this capability", value: "allow" },
+                    { label: "Allow permanently", value: "allow" },
                     { label: "Allow once", value: "allow-once" },
-                    { label: "Explicitly deny", value: "deny" },
+                    { label: "Deny permanently", value: "deny" },
                     { label: "Skip", value: "skip" },
                 ],
+                plan: { scopes: [], policies: [] },
             },
         });
     });

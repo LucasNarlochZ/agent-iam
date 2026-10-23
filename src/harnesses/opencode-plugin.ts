@@ -7,7 +7,11 @@ import {
     startApprovalBroker,
     startApprovalChoiceChannel,
 } from "../approvals/approval-broker.js";
-import { approvalOptions } from "../approvals/approval.js";
+import {
+    approvalChoice,
+    approvalOptions,
+    createApprovalPlan,
+} from "../approvals/approval.js";
 import {
     proxyMcpCommand,
     mcpProxyEnvironment,
@@ -76,7 +80,7 @@ export default Plugin.define({
             if (event.action === "agentiam.allow" && event.effect !== "deny") {
                 event.effect = "ask";
                 event.message =
-                    "Save a permanent Agent IAM allow rule, then retry the denied command.";
+                    "Choose an Agent IAM approval decision, action scope, and policy destination.";
             }
         });
         await ctx.shell.hook("create.before", (event) => {
@@ -94,7 +98,7 @@ export default Plugin.define({
                         );
                         const broker = await startApprovalBroker(
                             socket,
-                            async (capability) => {
+                            async (capability, approvalContext) => {
                                 const signal = context.signal;
                                 if (signal?.aborted) return "skip";
                                 const choicePath = join(
@@ -134,6 +138,10 @@ export default Plugin.define({
                                                 persistent: true,
                                                 agentiamApproval: {
                                                     socket: choicePath,
+                                                    plan: await createApprovalPlan(
+                                                        capability,
+                                                        approvalContext,
+                                                    ),
                                                     choices:
                                                         approvalOptions(
                                                             capability,
@@ -160,13 +168,17 @@ export default Plugin.define({
                                             aborted.then(() => false),
                                         ]);
                                         return allowed ||
-                                            result.choice === "deny" ||
-                                            result.choice === "skip"
+                                            approvalChoice(result.choice) ===
+                                                "deny" ||
+                                            approvalChoice(result.choice) ===
+                                                "deny-context" ||
+                                            approvalChoice(result.choice) ===
+                                                "skip"
                                             ? result.choice
                                             : "skip";
                                     }
                                     return "allowed" in result && result.allowed
-                                        ? "allow"
+                                        ? "allow-once"
                                         : "skip";
                                 } finally {
                                     await choiceChannel.close();

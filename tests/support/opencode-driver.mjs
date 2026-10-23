@@ -80,17 +80,18 @@ try {
         name: "agentiam-test",
         text: "",
     }).catch((error) => ({ error }));
-    let pending;
-    for (let attempt = 0; attempt < 100; attempt++) {
-        const result = await api("/api/permission/request");
-        pending = result.data.find(
-            (request) => request.action === "agentiam.allow",
-        );
-        if (pending) break;
-        await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    if (!pending)
+    async function waitForApproval() {
+        for (let attempt = 0; attempt < 100; attempt++) {
+            const result = await api("/api/permission/request");
+            const pending = result.data.find(
+                (request) => request.action === "agentiam.allow",
+            );
+            if (pending) return pending;
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
         throw new Error(`No native Agent IAM permission request: ${logs}`);
+    }
+    const pending = await waitForApproval();
     if (
         pending.sessionID !== session.id ||
         !pending.resources.includes("git.push")
@@ -109,26 +110,36 @@ try {
         join(process.env.HOME, ".agentiam/policy.yaml"),
         "utf8",
     );
-    if (policy.includes("git.push: true") !== (decision === "once")) {
+    if (policy !== "allow: {}\ndeny: {}\n") {
         throw new Error(`Unexpected policy after ${decision}: ${policy}`);
     }
     const first = await readFile(join(process.env.HOME, "result.json"), "utf8");
     if (!first.includes("[agentiam] DENY git.push"))
         throw new Error(`Command was not denied: ${first}`);
     if (decision === "once") {
-        await api(`/api/session/${session.id}/command`, {
+        if (JSON.parse(first).metadata?.exit !== 0)
+            throw new Error(`Allow once did not execute: ${first}`);
+        const retryCommand = api(`/api/session/${session.id}/command`, {
             name: "agentiam-test",
             text: "",
         });
+        const retryApproval = await waitForApproval();
+        await api(
+            `/api/session/${session.id}/permission/${retryApproval.id}/reply`,
+            {
+                decision: "reject",
+            },
+        );
+        await retryCommand;
         const retry = await readFile(
             join(process.env.HOME, "result.json"),
             "utf8",
         );
         if (
-            JSON.parse(retry).metadata?.exit !== 0 ||
-            retry.includes("[agentiam]")
+            JSON.parse(retry).metadata?.exit !== 126 ||
+            !retry.includes("[agentiam] DENY git.push")
         )
-            throw new Error(`Retry did not succeed silently: ${retry}`);
+            throw new Error(`Retry did not require another approval: ${retry}`);
     }
     console.log(`Native OpenCode approval handled: ${decision}`);
 } finally {

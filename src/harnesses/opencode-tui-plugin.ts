@@ -1,15 +1,15 @@
 import type { Plugin } from "@opencode/plugin/tui";
-import type { ApprovalChoice } from "../approvals/approval.js";
+import {
+    approvalChoice,
+    selectApproval,
+    type ApprovalDecision,
+    type ApprovalPlan,
+} from "../approvals/approval.js";
 import { sendApprovalChoice } from "../approvals/approval-broker.js";
-
-type AgentIAMChoice = {
-    label: string;
-    value: ApprovalChoice;
-};
 
 type AgentIAMApproval = {
     socket: string;
-    choices: AgentIAMChoice[];
+    plan: ApprovalPlan;
 };
 
 const agentIAMPlugin: Plugin.Definition = {
@@ -23,26 +23,31 @@ const agentIAMPlugin: Plugin.Definition = {
             if (
                 request.action !== "agentiam.allow" ||
                 !approval?.socket ||
-                !Array.isArray(approval.choices) ||
+                !approval.plan ||
                 active.has(request.id)
             ) {
                 return;
             }
             active.add(request.id);
             void (async () => {
-                let choice: ApprovalChoice = "skip";
+                let selected: ApprovalDecision = "skip";
                 try {
-                    choice =
-                        (await context.ui.dialog.select({
-                            title: `Agent IAM approval: ${request.resources.join(", ")}`,
-                            options: approval.choices.map(
-                                ({ label, value }) => ({
+                    selected = await selectApproval(
+                        {
+                            ...approval.plan,
+                            message: `Agent IAM approval: ${request.resources.join(", ")}`,
+                        },
+                        async (title, choices) =>
+                            (await context.ui.dialog.select({
+                                title,
+                                options: choices.map(({ label, value }) => ({
                                     title: label,
                                     value,
-                                }),
-                            ),
-                        })) ?? "skip";
-                    await sendApprovalChoice(approval.socket, choice);
+                                })),
+                            })) ?? "skip",
+                    );
+                    const choice = approvalChoice(selected);
+                    await sendApprovalChoice(approval.socket, selected);
                     await context.client.permission.reply({
                         sessionID: request.sessionID,
                         requestID: request.id,

@@ -1,6 +1,6 @@
 import { constants, existsSync } from "node:fs";
 import { copyFile, mkdir, readFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { resolvePolicyPath } from "../policy/schema.js";
 import { inspect } from "./inspect.js";
 import { runShim } from "../runtime/shim.js";
@@ -30,7 +30,7 @@ export interface CliDependencies {
 }
 
 function usage(): string {
-    return "Usage: agentiam --version\n       agentiam init\n       agentiam inspect policy\n       agentiam inspect logs [--head [N] | --tail [N]] [--json]\n       agentiam run -- <command> [args...]\n       agentiam mcp <registered-tool> -- <command> [args...]";
+    return "Usage: agentiam --version\n       agentiam init [--local]\n       agentiam inspect policy\n       agentiam inspect logs [--head [N] | --tail [N]] [--json]\n       agentiam run -- <command> [args...]\n       agentiam mcp <registered-tool> -- <command> [args...]";
 }
 
 export async function main(
@@ -66,11 +66,14 @@ export async function main(
         return 0;
     }
     if (command === "init") {
-        if (args.length !== 1) {
-            output.stderr.write("agentiam init does not accept arguments\n");
+        const local = args.length === 2 && args[1] === "--local";
+        if (args.length !== 1 && !local) {
+            output.stderr.write("Usage: agentiam init [--local]\n");
             return 1;
         }
-        const policyPath = resolvePolicyPath(env);
+        const policyPath = local
+            ? join(process.cwd(), ".agentiam", "policy.yaml")
+            : resolvePolicyPath(env);
         try {
             await mkdir(dirname(policyPath), { recursive: true });
             await copyFile(

@@ -18,6 +18,50 @@ async function fakeTool(directory: string, tool: string): Promise<string> {
 }
 
 describe("command shim", () => {
+    it("saves permanent decisions to the selected local policy and audits that path", async () => {
+        const home = await mkdtemp(join(tmpdir(), "agentiam-shim-local-"));
+        const cwd = join(home, "project");
+        const globalPath = join(home, ".agentiam", "policy.yaml");
+        const localPath = join(cwd, ".agentiam", "policy.yaml");
+        await mkdir(join(home, ".agentiam"));
+        await mkdir(join(cwd, ".agentiam"), { recursive: true });
+        await writeFile(globalPath, "allow: {}\ndeny: {}\n");
+        await writeFile(localPath, "allow: {}\ndeny: {}\n");
+        const stderr = new PassThrough();
+        expect(
+            await runShim({
+                tool: "git",
+                args: ["add", "file.txt"],
+                env: { HOME: home, PATH: "" },
+                cwd,
+                stderr,
+                promptForApproval: async () => ({
+                    choice: "deny",
+                    policyPath: localPath,
+                }),
+            }),
+        ).toBe(126);
+        expect(await readFile(globalPath, "utf8")).toBe(
+            "allow: {}\ndeny: {}\n",
+        );
+        expect(await readFile(localPath, "utf8")).toContain("git.add: true");
+        const records = (
+            await readFile(resolveAuditPath({ HOME: home }), "utf8")
+        )
+            .trim()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+        expect(records.at(-1)).toMatchObject({
+            event: "approval",
+            approval: "deny",
+            policyPath: localPath,
+            policyScope: "directory",
+        });
+        expect(stderr.read()?.toString()).toContain(
+            `Saved deny rule to ${localPath}`,
+        );
+    });
+
     it("reports normalization errors on stderr and audits them without executing", async () => {
         const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
         const normalize = vi
@@ -304,9 +348,7 @@ describe("command shim", () => {
         });
 
         expect(code).toBe(126);
-        expect(await readFile(output, "utf8")).toBe(
-            "diff\n--cached\n--name-only\n-z\n",
-        );
+        expect(await readFile(output, "utf8")).toBe("branch\n--show-current\n");
     });
 
     it("does not let a directory policy override a global deny", async () => {

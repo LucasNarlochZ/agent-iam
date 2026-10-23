@@ -1,7 +1,7 @@
 import { staticService } from "./static-service.js";
 
 const gitActions = {
-    add: [],
+    add: ["branches"],
     am: [],
     apply: [],
     archive: [],
@@ -13,7 +13,7 @@ const gitActions = {
     "cherry-pick": [],
     clean: [],
     clone: [],
-    commit: ["paths"],
+    commit: ["paths", "branches"],
     push: ["branches"],
     remote: [],
     config: [],
