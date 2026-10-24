@@ -51,7 +51,28 @@ deny:
         branches: [main, master]
 ```
 
-Branch names are matched exactly, not as glob patterns. These constraints use the current branch, not a push destination. For `git.commit`, a rule may include both `branches` and `paths`; both must match.
+Branch names are matched exactly, not as glob patterns. For add and commit, these constraints use the current branch. Push constraints use explicit destination branches when supplied. For `git.commit`, a rule may include both `branches` and `paths`; both must match.
+
+## Git force and operation constraints
+
+Both `git push --force origin main` and `git push -f origin HEAD:main` normalize to `git.push` with `branches: ["main"]` and `force: true`. Policy values remain arrays of strings:
+
+```yaml
+allow:
+    git.worktree.list: true
+    git.worktree.add:
+        force: ["false"]
+    git.remote.get-url: true
+    git.push:
+        branches: [main]
+        force: ["false"]
+deny:
+    git.push:
+        branches: [main]
+        force: ["true"]
+```
+
+This allows ordinary pushes to main and denies force pushes to main. `--force-with-lease`, `--mirror`, and refspecs beginning with `+` also count as force pushes. Separate capabilities let you allow remote inspection without granting `git.remote.set-url` or `git.remote.remove`.
 
 ## Directory policies
 

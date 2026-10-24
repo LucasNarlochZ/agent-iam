@@ -56,7 +56,11 @@ describe("command adapters", () => {
         ).toBe("git.commit");
         expect(
             (await gitAdapter.normalize(["commit", "-m", "fix"])).constraints,
-        ).toEqual({ paths: ["src/policy.ts"], branches: ["main"] });
+        ).toEqual({
+            paths: ["src/policy.ts"],
+            branches: ["main"],
+            force: false,
+        });
         expect((await gitAdapter.normalize(["remote", "-v"])).canonical).toBe(
             "git.remote",
         );
@@ -87,7 +91,7 @@ describe("command adapters", () => {
         expect(
             (await gitAdapter.normalize(["push", "origin", "main"]))
                 .constraints,
-        ).toEqual({ branches: ["main"] });
+        ).toEqual({ branches: ["main"], force: false });
         expect(
             (await gitAdapter.normalize(["--git-dir=/repo/.git", "status"]))
                 .canonical,
@@ -117,9 +121,9 @@ describe("command adapters", () => {
                 async () => [],
                 async () => undefined,
             );
-            expect(
-                (await adapter.normalize([action])).constraints,
-            ).toBeUndefined();
+            expect((await adapter.normalize([action])).constraints).toEqual({
+                force: false,
+            });
         },
     );
 
@@ -130,6 +134,7 @@ describe("command adapters", () => {
         );
         expect((await adapter.normalize(["commit"])).constraints).toEqual({
             paths: ["safe.txt"],
+            force: false,
         });
     });
 
