@@ -11,6 +11,10 @@ Agent IAM checks intercepted Git, GitHub CLI, AWS CLI, and supported GitHub MCP 
 
 **Build permissions as you work—not by hand-editing YAML.** Initialize a policy, launch your agent, and approve supported CLI and GitHub MCP capabilities when they are needed. Agent IAM saves permanent decisions for you, with supported repository, branch, or staged-path restrictions. See [progressive permissions](#progressive-permissions).
 
+## Demo
+
+![Agent IAM Demo](docs/assets/demo.gif)
+
 ## The problem: access is broader than the task
 
 You ask an agent to investigate a GitHub issue, fix the code, and prepare a pull request. It needs to read issues, commit changes locally, and create a PR—but you still want to review before merging.
