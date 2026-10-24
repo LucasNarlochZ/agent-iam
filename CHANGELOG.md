@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0](https://github.com/LucasNarlochZ/agent-iam/compare/core-v0.5.0...core-v0.6.0) (2026-10-24)
+
+
+### Features
+
+* add granular git permissions and force constraints ([60f67c0](https://github.com/LucasNarlochZ/agent-iam/commit/60f67c02b657cf1289842fa67b8d153f9cadaa88))
+* add scoped local and MCP approvals with granular Git permissions ([7e799b0](https://github.com/LucasNarlochZ/agent-iam/commit/7e799b071d013a519a52c19dff6e8d93f5aaa424))
+
 ## [0.5.0](https://github.com/LucasNarlochZ/agent-iam/compare/core-v0.4.2...core-v0.5.0) (2026-10-23)
 
 
