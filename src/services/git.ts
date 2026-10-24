@@ -14,7 +14,7 @@ const gitActions = {
     clean: [],
     clone: [],
     commit: ["paths", "branches"],
-    push: ["branches"],
+    push: ["branches", "force"],
     remote: [],
     config: [],
     "symbolic-ref": [],
@@ -45,7 +45,46 @@ const gitActions = {
     worktree: [],
 } as const;
 
-export const gitService = staticService("git", gitActions, {
+const actions: Record<string, readonly string[]> = Object.fromEntries(
+    Object.entries(gitActions).map(([action, constraints]) => [
+        action,
+        [...new Set([...constraints, "force"])],
+    ]),
+);
+for (const action of [
+    "add",
+    "list",
+    "lock",
+    "move",
+    "prune",
+    "remove",
+    "repair",
+    "unlock",
+]) {
+    actions[`worktree.${action}`] = ["force"];
+}
+for (const action of [
+    "add",
+    "rename",
+    "remove",
+    "set-head",
+    "set-branches",
+    "get-url",
+    "set-url",
+    "show",
+    "prune",
+    "update",
+]) {
+    actions[`remote.${action}`] = ["force"];
+}
+
+export const gitService = staticService("git", actions, {
+    force: (capability) => {
+        const force = capability.constraints?.force;
+        return typeof force === "boolean"
+            ? { values: [String(force)], label: `force ${force}` }
+            : undefined;
+    },
     paths: (capability) => {
         const paths = capability.constraints?.paths;
         return Array.isArray(paths) && paths.length > 0

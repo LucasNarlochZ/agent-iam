@@ -25,7 +25,7 @@ describe("tool registry", () => {
         expect(isToolName("unknown")).toBe(false);
         expect(registry.getCli("aws").service).toBe(services.aws);
         expect(capabilityDefinitionFor("git.commit")).toMatchObject({
-            constraints: ["paths", "branches"],
+            constraints: ["paths", "branches", "force"],
         });
         expect(
             capabilityDefinitionFor("aws.sts.get-caller-identity"),

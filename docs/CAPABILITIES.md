@@ -28,9 +28,13 @@ merge mv pull push rebase reflog remote reset restore revert rev-parse rm
 show stash status submodule switch symbolic-ref tag worktree
 ```
 
-Permissions apply to the whole subcommand, including flags and nested operations. For example, allowing `git.branch` also allows branch deletion.
+Worktree operations use separate capabilities: `git.worktree.add`, `list`, `lock`, `move`, `prune`, `remove`, `repair`, and `unlock` (each with the `git.worktree.` prefix).
 
-`git.add`, `git.commit`, and `git.push` support `branches` constraints based on the current branch. `git.commit` also supports `paths` constraints based on staged paths; when both constraints appear in a rule, both must match. Context lookups respect leading Git options such as `-C` and `--git-dir`. Other Git capabilities are capability-wide.
+Remote operations use `git.remote.add`, `rename`, `remove`, `set-head`, `set-branches`, `get-url`, `set-url`, `show`, `prune`, and `update` (each with the `git.remote.` prefix). `git remote rm` maps to `git.remote.remove`. Bare `git remote` and `git remote -v` retain `git.remote`; allowing it does not grant nested operations.
+
+Other permissions apply to the whole subcommand. For example, allowing `git.branch` also allows branch deletion. All registered Git capabilities support `force` constraints using string values `"true"` and `"false"`. Force detection covers `--force`, short flags containing `-f`, and push `--force-with-lease` and leading `+` refspecs.
+
+`git.add` and `git.commit` support `branches` constraints based on the current branch. `git.push` uses explicit refspec destinations, normalizing `refs/heads/main` to `main`; without refspecs it falls back to the current branch. Pushes using `--all`, `--branches`, `--mirror`, `--tags`, `--follow-tags`, wildcard refspecs, or non-branch refs omit branch context, so branch-constrained allow rules do not match. `git.commit` also supports `paths` constraints based on staged paths; when both constraints appear in a rule, both must match. Context lookups respect leading Git options such as `-C` and `--git-dir`. Rules may combine branch, path, and force constraints where supported; all constraints must match.
 
 Branch-constrained allow rules do not match when the current branch is unavailable, including detached HEAD. Branch-constrained deny rules also do not match without branch context; they do not block a separate capability-wide allow. See [branch policy examples](POLICIES.md#git-branch-constraints).
 
