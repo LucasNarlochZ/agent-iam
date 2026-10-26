@@ -11,6 +11,91 @@ const adapter = new GitCliAdapter(
 
 describe("granular Git permissions", () => {
     it.each([
+        ["switch", "-c", "feature/auth"],
+        ["switch", "--create", "feature/auth"],
+        ["switch", "--create=feature/auth"],
+        ["switch", "-cfeature/auth"],
+        ["checkout", "-b", "feature/auth"],
+        ["checkout", "-bfeature/auth", "main"],
+        ["branch", "feature/auth"],
+        ["branch", "feature/auth", "main"],
+        ["branch", "--track=direct", "feature/auth", "origin/main"],
+        ["branch", "--quiet", "feature/auth"],
+        ["branch", "--create-reflog", "feature/auth"],
+        ["branch", "--", "feature/auth"],
+        ["-C", "/target", "switch", "-c", "feature/auth"],
+    ])("normalizes branch creation %j", async (...args) => {
+        expect(await adapter.normalize(args)).toEqual({
+            service: "git",
+            action: "create",
+            canonical: "git.branch.create",
+            constraints: { force: false },
+        });
+        expect(
+            gitService.capabilityDefinition("git.branch.create"),
+        ).toBeDefined();
+    });
+
+    it.each([
+        ["switch", "-C", "feature/auth"],
+        ["switch", "--force-create=feature/auth"],
+        ["switch", "--force-create", "feature/auth"],
+        ["switch", "-Cfeature/auth"],
+        ["checkout", "-B", "feature/auth"],
+        ["checkout", "-Bfeature/auth"],
+        ["branch", "-f", "feature/auth"],
+    ])("preserves forced branch creation %j", async (...args) => {
+        const command = await adapter.normalize(args);
+        expect(command.canonical).toBe("git.branch.create");
+        expect(command.constraints).toEqual({ force: true });
+    });
+
+    it.each([
+        ["branch"],
+        ["branch", "--list", "feature/*"],
+        ["branch", "-l", "feature/*"],
+        ["branch", "-a"],
+        ["branch", "-d", "feature/auth"],
+        ["branch", "-D", "feature/auth"],
+        ["branch", "-m", "feature/auth"],
+        ["branch", "--edit-description", "feature/auth"],
+        ["branch", "--set-upstream-to=origin/main", "feature/auth"],
+        ["switch", "feature/auth"],
+        ["checkout", "feature/auth"],
+        ["checkout", "--", "-bfeature/auth"],
+        ["checkout", "--conflict", "-bfeature/auth", "--", "file"],
+    ])(
+        "does not classify other operations as branch creation %j",
+        async (...args) => {
+            expect((await adapter.normalize(args)).canonical).toBe(
+                `git.${args[0]}`,
+            );
+        },
+    );
+
+    it("authorizes all branch creation spellings with one permission", async () => {
+        const policy = parsePolicy("allow:\n  git.branch.create: true\n");
+        for (const args of [
+            ["branch", "feature/auth"],
+            ["switch", "-c", "feature/auth"],
+            ["checkout", "-b", "feature/auth"],
+        ]) {
+            expect(
+                (await evaluatePolicy(policy, await adapter.normalize(args)))
+                    .decision,
+            ).toBe("ALLOW");
+        }
+        expect(
+            (
+                await evaluatePolicy(
+                    policy,
+                    await adapter.normalize(["branch", "-d", "feature/auth"]),
+                )
+            ).decision,
+        ).toBe("DENY");
+    });
+
+    it.each([
         ["worktree", "add"],
         ["worktree", "list"],
         ["worktree", "lock"],

@@ -14,6 +14,68 @@ const valueOptions = new Set([
     "--namespace",
 ]);
 
+function branchCreation(command: string, args: string[]): boolean | undefined {
+    if (command === "branch") {
+        let literal = false;
+        let hasName = false;
+        const options: string[] = [];
+        for (const arg of args) {
+            if (!literal && arg === "--") {
+                literal = true;
+            } else if (!literal && arg.startsWith("-")) {
+                if (
+                    ![
+                        "-f",
+                        "--force",
+                        "-t",
+                        "--track",
+                        "--no-track",
+                        "-q",
+                        "--quiet",
+                        "--create-reflog",
+                        "--recurse-submodules",
+                    ].includes(arg) &&
+                    !arg.startsWith("--track=")
+                )
+                    return undefined;
+                options.push(arg);
+            } else {
+                hasName = true;
+            }
+        }
+        return hasName ? forceRequested(options) : undefined;
+    }
+    if (command !== "switch" && command !== "checkout") return undefined;
+    let create = false;
+    let forceCreate = false;
+    const options: string[] = [];
+    const short = command === "switch" ? "cC" : "bB";
+    for (let index = 0; index < args.length; index++) {
+        const arg = args[index]!;
+        if (arg === "--") break;
+        if (["--conflict", "--orphan", "--pathspec-from-file"].includes(arg)) {
+            index++;
+            continue;
+        }
+        const shortCreate = new RegExp(`^-[${short}]`).test(arg);
+        const longCreate =
+            command === "switch" && /^(--create|--force-create)(=|$)/.test(arg);
+        if (shortCreate || longCreate) {
+            const attached = shortCreate ? arg.length > 2 : arg.includes("=");
+            const name = attached
+                ? arg.slice(shortCreate ? 2 : arg.indexOf("=") + 1)
+                : args[++index];
+            if (!name || name.startsWith("-")) return undefined;
+            create = true;
+            forceCreate ||=
+                /^-[CB]/.test(arg) || arg.startsWith("--force-create");
+        } else if (arg.startsWith("-")) {
+            options.push(arg);
+        }
+    }
+    return create ? forceCreate || forceRequested(options) : undefined;
+}
+
 function forceRequested(args: string[]): boolean {
     let force = false;
     let lease = false;
@@ -174,6 +236,13 @@ export class GitCliAdapter implements CliAdapter {
                 continue;
             }
             const tail = args.slice(index + 1);
+            const createForce = branchCreation(token, tail);
+            if (createForce !== undefined) {
+                return {
+                    ...capability("git", "create", "branch"),
+                    constraints: { force: createForce },
+                };
+            }
             if (token === "worktree" || token === "remote") {
                 const subcommand = tail.find((arg) => !arg.startsWith("-"));
                 const action =

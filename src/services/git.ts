@@ -8,6 +8,7 @@ const gitActions = {
     bisect: [],
     blame: [],
     branch: [],
+    "branch.create": [],
     bundle: [],
     checkout: [],
     "cherry-pick": [],
