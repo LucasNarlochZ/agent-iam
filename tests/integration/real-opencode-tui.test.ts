@@ -129,8 +129,10 @@ describe.skipIf(!opencode || process.platform !== "linux")(
                     terminal.write("\r");
                     if (choice !== "unavailable") {
                         await terminal.waitFor(
-                            "Agent IAM approval: aws.sts.get-caller-identity",
+                            "aws.sts.get-caller-identity was denied.",
                         );
+                        await terminal.waitFor(`Command: ${command}`);
+                        await terminal.waitFor("Constraints:");
                         await terminal.waitFor("Allow permanently");
                         expect(await readFile(policy, "utf8")).toBe(
                             initialPolicy,
@@ -153,7 +155,7 @@ describe.skipIf(!opencode || process.platform !== "linux")(
                     );
                     if (choice === "unavailable") {
                         expect(terminal.output()).not.toContain(
-                            "Agent IAM approval:",
+                            "aws.sts.get-caller-identity was denied.",
                         );
                         expect(result).toContain(
                             "Approval was skipped or unavailable",

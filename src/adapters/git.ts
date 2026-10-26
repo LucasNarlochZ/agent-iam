@@ -14,6 +14,68 @@ const valueOptions = new Set([
     "--namespace",
 ]);
 
+function branchCreation(command: string, args: string[]): boolean | undefined {
+    if (command === "branch") {
+        let literal = false;
+        let hasName = false;
+        const options: string[] = [];
+        for (const arg of args) {
+            if (!literal && arg === "--") {
+                literal = true;
+            } else if (!literal && arg.startsWith("-")) {
+                if (
+                    ![
+                        "-f",
+                        "--force",
+                        "-t",
+                        "--track",
+                        "--no-track",
+                        "-q",
+                        "--quiet",
+                        "--create-reflog",
+                        "--recurse-submodules",
+                    ].includes(arg) &&
+                    !arg.startsWith("--track=")
+                )
+                    return undefined;
+                options.push(arg);
+            } else {
+                hasName = true;
+            }
+        }
+        return hasName ? forceRequested(options) : undefined;
+    }
+    if (command !== "switch" && command !== "checkout") return undefined;
+    let create = false;
+    let forceCreate = false;
+    const options: string[] = [];
+    const short = command === "switch" ? "cC" : "bB";
+    for (let index = 0; index < args.length; index++) {
+        const arg = args[index]!;
+        if (arg === "--") break;
+        if (["--conflict", "--orphan", "--pathspec-from-file"].includes(arg)) {
+            index++;
+            continue;
+        }
+        const shortCreate = new RegExp(`^-[${short}]`).test(arg);
+        const longCreate =
+            command === "switch" && /^(--create|--force-create)(=|$)/.test(arg);
+        if (shortCreate || longCreate) {
+            const attached = shortCreate ? arg.length > 2 : arg.includes("=");
+            const name = attached
+                ? arg.slice(shortCreate ? 2 : arg.indexOf("=") + 1)
+                : args[++index];
+            if (!name || name.startsWith("-")) return undefined;
+            create = true;
+            forceCreate ||=
+                /^-[CB]/.test(arg) || arg.startsWith("--force-create");
+        } else if (arg.startsWith("-")) {
+            options.push(arg);
+        }
+    }
+    return create ? forceCreate || forceRequested(options) : undefined;
+}
+
 function forceRequested(args: string[]): boolean {
     let force = false;
     let lease = false;
@@ -45,6 +107,128 @@ function forceRequested(args: string[]): boolean {
             lease = true;
     }
     return force || lease;
+}
+
+function restoration(
+    command: string,
+    args: string[],
+): { destination: "worktree" | "index"; force: boolean } | undefined {
+    if (!["restore", "checkout", "reset"].includes(command)) return undefined;
+    const before: string[] = [];
+    const paths: string[] = [];
+    const flags: string[] = [];
+    let literal = false;
+    let pathspecFile = false;
+    for (let index = 0; index < args.length; index++) {
+        const arg = args[index]!;
+        if (!literal && arg === "--") {
+            literal = true;
+        } else if (!literal && arg.startsWith("-")) {
+            const source =
+                command === "restore" && /^(--source(=|$)|-s)/.test(arg);
+            const valueOption =
+                source ||
+                /^--pathspec-from-file(=|$)/.test(arg) ||
+                (command !== "reset" && /^--conflict(=|$)/.test(arg));
+            if (valueOption) {
+                const value = arg.includes("=")
+                    ? arg.slice(arg.indexOf("=") + 1)
+                    : source && arg.startsWith("-s") && arg.length > 2
+                      ? arg.slice(2)
+                      : args[++index];
+                if (!value || (value.startsWith("-") && value !== "-"))
+                    return undefined;
+                if (arg.startsWith("--pathspec-from-file")) pathspecFile = true;
+            } else if (
+                [
+                    "-q",
+                    "--quiet",
+                    "-p",
+                    "--patch",
+                    "--pathspec-file-nul",
+                ].includes(arg) ||
+                (command === "reset" &&
+                    ["--refresh", "--no-refresh"].includes(arg)) ||
+                (command !== "reset" &&
+                    [
+                        "--progress",
+                        "--no-progress",
+                        "--ours",
+                        "--theirs",
+                        "-m",
+                        "--merge",
+                        "--ignore-unmerged",
+                        "--ignore-skip-worktree-bits",
+                        "--recurse-submodules",
+                        "--no-recurse-submodules",
+                        "--overlay",
+                        "--no-overlay",
+                    ].includes(arg)) ||
+                (command === "restore" &&
+                    ["-W", "--worktree", "-S", "--staged"].includes(arg)) ||
+                (command === "checkout" && ["-f", "--force"].includes(arg))
+            ) {
+                flags.push(arg);
+            } else {
+                return undefined;
+            }
+        } else {
+            (literal ? paths : before).push(arg);
+        }
+    }
+    if (command === "checkout" && before.length > 0) return undefined;
+    if (command === "reset") {
+        if (before.length > 1 || (paths.length === 0 && !pathspecFile))
+            return undefined;
+        return { destination: "index", force: false };
+    }
+    if (before.length + paths.length === 0 && !pathspecFile) return undefined;
+    const staged = flags.some((arg) => ["-S", "--staged"].includes(arg));
+    const worktree = flags.some((arg) => ["-W", "--worktree"].includes(arg));
+    if (staged && worktree) return undefined;
+    return {
+        destination: staged ? "index" : "worktree",
+        force: forceRequested(flags),
+    };
+}
+
+function switchTarget(command: string, args: string[]): string | undefined {
+    if (command !== "switch" && command !== "checkout") return undefined;
+    const targets: string[] = [];
+    let literal = false;
+    for (const arg of args) {
+        if (!literal && arg === "--") {
+            if (command === "checkout" && targets.length === 0)
+                return undefined;
+            literal = true;
+        } else if (!literal && arg !== "-" && arg.startsWith("-")) {
+            if (
+                ![
+                    "-q",
+                    "--quiet",
+                    "-f",
+                    "--force",
+                    "--discard-changes",
+                    "-m",
+                    "--merge",
+                    "--guess",
+                    "--no-guess",
+                    "--ignore-other-worktrees",
+                    "--progress",
+                    "--no-progress",
+                    "--recurse-submodules",
+                    "--no-recurse-submodules",
+                    "--overwrite-ignore",
+                    "--no-overwrite-ignore",
+                ].includes(arg)
+            )
+                return undefined;
+        } else {
+            if (literal && command === "checkout") return undefined;
+            targets.push(arg);
+        }
+    }
+    return targets.length === 1 ? targets[0] : undefined;
 }
 
 function pushContext(args: string[]): {
@@ -142,10 +326,35 @@ async function currentBranch(
     }
 }
 
+async function isLocalBranch(
+    target: string,
+    env: NodeJS.ProcessEnv,
+    options: string[] = [],
+): Promise<boolean> {
+    if (target === "HEAD" || target.startsWith("refs/")) return false;
+    try {
+        const ref = await gitOutput(
+            [
+                ...options,
+                "rev-parse",
+                "--symbolic-full-name",
+                "--verify",
+                "--end-of-options",
+                target === "-" ? "@{-1}" : target,
+            ],
+            env,
+        );
+        return ref.trim().startsWith("refs/heads/");
+    } catch {
+        return false;
+    }
+}
+
 export class GitCliAdapter implements CliAdapter {
     constructor(
         private readonly readStagedPaths = stagedPaths,
         private readonly readCurrentBranch = currentBranch,
+        private readonly readIsLocalBranch = isLocalBranch,
     ) {}
 
     async normalize(
@@ -174,6 +383,39 @@ export class GitCliAdapter implements CliAdapter {
                 continue;
             }
             const tail = args.slice(index + 1);
+            const createForce = branchCreation(token, tail);
+            if (createForce !== undefined) {
+                return {
+                    ...capability("git", "create", "branch"),
+                    constraints: { force: createForce },
+                };
+            }
+            const restore = restoration(token, tail);
+            if (restore) {
+                return {
+                    ...capability("git", "restore", restore.destination),
+                    constraints: { force: restore.force },
+                };
+            }
+            const target = switchTarget(token, tail);
+            if (
+                target &&
+                (token === "switch" ||
+                    (await this.readIsLocalBranch(
+                        target,
+                        env,
+                        args.slice(0, index),
+                    )))
+            ) {
+                return {
+                    ...capability("git", "switch", "branch"),
+                    constraints: {
+                        force:
+                            forceRequested(tail) ||
+                            tail.includes("--discard-changes"),
+                    },
+                };
+            }
             if (token === "worktree" || token === "remote") {
                 const subcommand = tail.find((arg) => !arg.startsWith("-"));
                 const action =

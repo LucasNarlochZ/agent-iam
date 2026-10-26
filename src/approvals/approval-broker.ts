@@ -13,7 +13,8 @@ function parseContext(value: unknown): ApprovalContext | undefined {
     if (!value || typeof value !== "object") return undefined;
     const context = value as Record<string, unknown>;
     return typeof context.cwd === "string" &&
-        typeof context.globalPolicyPath === "string"
+        typeof context.globalPolicyPath === "string" &&
+        (context.command === undefined || typeof context.command === "string")
         ? (context as unknown as ApprovalContext)
         : undefined;
 }

@@ -106,6 +106,8 @@ Approval takes at most three questions. The first offers:
 - **Deny permanently**: save a deny rule after choosing its scope and destination.
 - **Skip**: leave policy unchanged and keep the command denied.
 
+The decision prompt shows the denied capability and all normalized constraints, or `Constraints: none` when none are available. CLI approval prompts also show the complete intercepted command, including arguments. Control characters are escaped so command arguments and constraint values cannot forge prompt lines or insert terminal controls.
+
 For permanent decisions, the second question offers all contexts of the action or a supported restriction, such as the current repository, branch, or staged paths. Actions without available scope controls skip this question.
 
 If the command's current directory contains `.agentiam/policy.yaml`, the final question offers the global and local policies, showing each full path. Otherwise, rules are saved to `~/.agentiam/policy.yaml` without a destination question. Ancestor-directory policies are not offered as local destinations. Cancelling any question leaves policy unchanged.

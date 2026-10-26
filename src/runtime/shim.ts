@@ -148,6 +148,7 @@ export async function runShim(options: ShimOptions): Promise<number> {
             const context = {
                 cwd: options.cwd ?? process.cwd(),
                 globalPolicyPath: loadedPolicy.path,
+                command: record.command,
             };
             let unavailableReason: string | undefined;
             const prompt =

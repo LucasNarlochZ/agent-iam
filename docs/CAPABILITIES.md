@@ -32,6 +32,22 @@ Worktree operations use separate capabilities: `git.worktree.add`, `list`, `lock
 
 Remote operations use `git.remote.add`, `rename`, `remove`, `set-head`, `set-branches`, `get-url`, `set-url`, `show`, `prune`, and `update` (each with the `git.remote.` prefix). `git remote rm` maps to `git.remote.remove`. Bare `git remote` and `git remote -v` retain `git.remote`; allowing it does not grant nested operations.
 
+Branch creation uses one capability, without a separate switch permission:
+
+| Command                        | Capability          |
+| ------------------------------ | ------------------- |
+| `git switch -c feature/auth`   | `git.branch.create` |
+| `git checkout -b feature/auth` | `git.branch.create` |
+| `git branch feature/auth`      | `git.branch.create` |
+
+The switch options `--create`, `-C`, and `--force-create`, and checkout option `-B`, also map to `git.branch.create`. Forced creation/reset forms (`-C`, `--force-create`, `-B`, and `git branch -f <name>`) set `force: true`; use a `force: ["false"]` constraint to deny them. Attached branch names such as `-cfeature/auth` and `--create=feature/auth` are supported. Existing policies must allow `git.branch.create` explicitly; `git.branch`, `git.switch`, and `git.checkout` no longer authorize these creation forms. Branch listing, deletion, and renaming retain `git.branch`.
+
+`git switch <branch>` and `git checkout <branch>` use `git.branch.switch`. Checkout targets are verified as local branches in the selected repository, respecting leading options such as `-C`. Tags, commit targets, unresolved targets (including remote-only branch guessing), and explicit detached/orphan operations retain their original capabilities. Use `checkout -- <path>` to distinguish file restoration from branch switching. Switching with `-f`, `--force`, or `--discard-changes` sets `force: true`. Existing `git.switch` and `git.checkout` rules do not grant `git.branch.switch`.
+
+`git restore <path>` (including explicit `--worktree`/`-W`) and `git checkout -- <path>` use `git.worktree.restore`. This permission changes working-tree files only. Restore source options (`--source`/`-s`) and pathspec files are supported. `git checkout <commit> -- <path>` also changes the index and retains `git.checkout`; combined `git restore --staged --worktree` retains `git.restore`. Existing `git.restore` and `git.checkout` rules do not grant `git.worktree.restore`.
+
+`git restore --staged <path>` (or `-S`) and `git reset HEAD -- <path>` use `git.index.restore`. Omitting `HEAD` in the path-scoped reset also works. Both commands can restore index entries from a different source: `git restore --staged --source=<commit> <path>` and `git reset <commit> -- <path>`. Pathspec files are supported. Resets without explicit paths after `--` or a pathspec file retain `git.reset`, since they may move the branch tip. Hard, soft, merge, and keep reset modes also retain `git.reset`. Existing `git.restore` and `git.reset` rules do not grant `git.index.restore`.
+
 Other permissions apply to the whole subcommand. For example, allowing `git.branch` also allows branch deletion. All registered Git capabilities support `force` constraints using string values `"true"` and `"false"`. Force detection covers `--force`, short flags containing `-f`, and push `--force-with-lease` and leading `+` refspecs.
 
 `git.add` and `git.commit` support `branches` constraints based on the current branch. `git.push` uses explicit refspec destinations, normalizing `refs/heads/main` to `main`; without refspecs it falls back to the current branch. Pushes using `--all`, `--branches`, `--mirror`, `--tags`, `--follow-tags`, wildcard refspecs, or non-branch refs omit branch context, so branch-constrained allow rules do not match. `git.commit` also supports `paths` constraints based on staged paths; when both constraints appear in a rule, both must match. Context lookups respect leading Git options such as `-C` and `--git-dir`. Rules may combine branch, path, and force constraints where supported; all constraints must match.

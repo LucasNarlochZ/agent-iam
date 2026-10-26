@@ -49,7 +49,8 @@ describe("OpenCode TUI approval plugin", () => {
                         socket: path,
                         choices: [{ label: "Choice", value: choice }],
                         plan: {
-                            message: "Agent IAM approval: git.push",
+                            message:
+                                "[agentiam] git.push was denied.\nCommand: git push origin dev\nConstraints: branches:dev",
                             scopes: contextual
                                 ? [
                                       {
@@ -77,7 +78,7 @@ describe("OpenCode TUI approval plugin", () => {
             }),
         );
         expect(select).toHaveBeenCalledWith({
-            title: "Agent IAM approval: git.push",
+            title: "[agentiam] git.push was denied.\nCommand: git push origin dev\nConstraints: branches:dev",
             options: [
                 { title: "Allow permanently", value: "allow" },
                 { title: "Allow once", value: "allow-once" },

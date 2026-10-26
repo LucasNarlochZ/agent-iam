@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import {
     persistApproval,
+    approvalMessage,
     persistApprovalDecision,
     requestApproval,
     selectWithArrowKeys,
@@ -12,6 +13,68 @@ import {
 import { parsePolicy } from "../../src/policy/schema.js";
 
 describe("interactive approval", () => {
+    it("escapes terminal controls in commands and normalized constraints", () => {
+        const message = approvalMessage(
+            {
+                service: "git",
+                action: "push",
+                canonical: "git.push",
+                constraints: { branches: ["dev\u009b2J", "main\nspoof"] },
+            },
+            {
+                cwd: "/project",
+                globalPolicyPath: "/policy.yaml",
+                command: "git push\u001b[2J\norigin dev",
+            },
+        );
+        expect(message).toContain("Command: git push\\u001b[2J\\norigin dev");
+        expect(message).toContain(
+            "Constraints: branches:dev\\u009b2J, main\\nspoof",
+        );
+        expect(message).not.toMatch(/[\u001b\u009b]/);
+    });
+
+    it("explicitly reports when there are no normalized constraints", () => {
+        expect(
+            approvalMessage({
+                service: "git",
+                action: "status",
+                canonical: "git.status",
+            }),
+        ).toBe("[agentiam] git.status was denied.\nConstraints: none");
+    });
+
+    it("shows the complete command and every normalized constraint before the decision", async () => {
+        let message = "";
+        await requestApproval(
+            {
+                service: "git",
+                action: "push",
+                canonical: "git.push",
+                constraints: {
+                    branches: ["dev"],
+                    remote: "origin",
+                    force: false,
+                },
+            },
+            {
+                isTTY: true,
+                context: {
+                    cwd: process.cwd(),
+                    globalPolicyPath: "/nonexistent/policy.yaml",
+                    command: 'git push origin dev --push-option="hello world"',
+                },
+                select: async (prompt) => {
+                    message = prompt;
+                    return "allow-once";
+                },
+            },
+        );
+        expect(message).toBe(
+            '[agentiam] git.push was denied.\nCommand: git push origin dev --push-option="hello world"\nConstraints: branches:dev, remote:origin, force:false',
+        );
+    });
+
     it("provides an interactive approval prompt", async () => {
         const approval = await import("../../src/approvals/approval.js");
 
@@ -68,7 +131,7 @@ describe("interactive approval", () => {
         ).resolves.toMatchObject({ choice: "allow-context", scope: ["repos"] });
         expect(prompts).toHaveLength(2);
         expect(prompts[0]).toEqual([
-            "[agentiam] github.pr.merge was denied.",
+            "[agentiam] github.pr.merge was denied.\nConstraints: repository:owner/repo, pullRequest:42",
             "Allow permanently",
             "Allow once",
             "Deny permanently",
