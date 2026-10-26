@@ -33,10 +33,7 @@ const agentIAMPlugin: Plugin.Definition = {
                 let selected: ApprovalDecision = "skip";
                 try {
                     selected = await selectApproval(
-                        {
-                            ...approval.plan,
-                            message: `Agent IAM approval: ${request.resources.join(", ")}`,
-                        },
+                        approval.plan,
                         async (title, choices) =>
                             (await context.ui.dialog.select({
                                 title,

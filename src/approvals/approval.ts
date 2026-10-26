@@ -21,6 +21,7 @@ export type ApprovalDecision =
 export interface ApprovalContext {
     cwd: string;
     globalPolicyPath: string;
+    command?: string;
 }
 
 export function approvalChoice(decision: ApprovalDecision): ApprovalChoice {
@@ -57,8 +58,28 @@ export interface ApprovalOption {
     value: string;
 }
 
-export function approvalMessage(capability: CanonicalCapability): string {
-    return `[agentiam] ${capability.canonical} was denied.`;
+export function approvalMessage(
+    capability: CanonicalCapability,
+    context?: ApprovalContext,
+): string {
+    const safe = (value: string) =>
+        value.replace(/[\x00-\x1f\x7f-\x9f]/g, (character) => {
+            const escaped = JSON.stringify(character).slice(1, -1);
+            return escaped === character
+                ? `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`
+                : escaped;
+        });
+    const constraints = Object.entries(capability.constraints ?? {})
+        .filter(([, value]) => value !== undefined)
+        .map(
+            ([name, value]) =>
+                `${safe(name)}:${safe(Array.isArray(value) ? value.join(", ") : String(value))}`,
+        );
+    return [
+        `[agentiam] ${safe(capability.canonical)} was denied.`,
+        ...(context?.command ? [`Command: ${safe(context.command)}`] : []),
+        `Constraints: ${constraints.join(", ") || "none"}`,
+    ].join("\n");
 }
 
 export function selectWithArrowKeys(
@@ -172,7 +193,7 @@ export async function createApprovalPlan(
         }
     }
     return {
-        message: approvalMessage(capability),
+        message: approvalMessage(capability, context),
         scopes,
         policies: hasLocal
             ? [

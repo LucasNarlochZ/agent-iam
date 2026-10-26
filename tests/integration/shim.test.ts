@@ -204,6 +204,37 @@ describe("command shim", () => {
         expect(records.at(-1).requestId).toBe(records[0].requestId);
     });
 
+    it("forwards the complete command to the approval broker", async () => {
+        const { startApprovalBroker } =
+            await import("../../src/approvals/approval-broker.js");
+        const home = await mkdtemp(join(tmpdir(), "agentiam-command-"));
+        await mkdir(join(home, ".agentiam"));
+        await writeFile(join(home, ".agentiam", "policy.yaml"), "allow: {}\n");
+        const socket = join(home, "approval.sock");
+        let received: unknown;
+        const broker = await startApprovalBroker(
+            socket,
+            async (_capability, context) => {
+                received = context;
+                return "skip";
+            },
+        );
+        try {
+            await runShim({
+                tool: "git",
+                args: ["add", "file with spaces.txt", "other.txt"],
+                env: { HOME: home, AGENTIAM_APPROVAL_SOCKET: socket },
+                cwd: home,
+                stderr: new PassThrough(),
+            });
+            expect(received).toMatchObject({
+                command: 'git add "file with spaces.txt" other.txt',
+            });
+        } finally {
+            await broker.close();
+        }
+    });
+
     it("audits allow-once separately before executing the command", async () => {
         const home = await mkdtemp(join(tmpdir(), "agentiam-shim-home-"));
         const bin = await mkdtemp(join(tmpdir(), "agentiam-shim-bin-"));

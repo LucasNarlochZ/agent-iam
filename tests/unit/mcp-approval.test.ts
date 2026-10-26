@@ -27,7 +27,8 @@ describe("MCP approval", () => {
         expect(requests).toHaveLength(2);
         expect(requests[0]).toEqual({
             mode: "form",
-            message: "[agentiam] github.pr.merge was denied.",
+            message:
+                "[agentiam] github.pr.merge was denied.\nConstraints: repository:owner/repo",
             requestedSchema: {
                 type: "object",
                 properties: {
