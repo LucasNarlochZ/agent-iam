@@ -9,6 +9,7 @@ const gitActions = {
     blame: [],
     branch: [],
     "branch.create": [],
+    "branch.switch": [],
     bundle: [],
     checkout: [],
     "cherry-pick": [],

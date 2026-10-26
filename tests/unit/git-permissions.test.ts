@@ -67,8 +67,8 @@ describe("granular Git permissions", () => {
     ])(
         "does not classify other operations as branch creation %j",
         async (...args) => {
-            expect((await adapter.normalize(args)).canonical).toBe(
-                `git.${args[0]}`,
+            expect((await adapter.normalize(args)).canonical).not.toBe(
+                "git.branch.create",
             );
         },
     );

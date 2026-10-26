@@ -109,6 +109,45 @@ function forceRequested(args: string[]): boolean {
     return force || lease;
 }
 
+function switchTarget(command: string, args: string[]): string | undefined {
+    if (command !== "switch" && command !== "checkout") return undefined;
+    const targets: string[] = [];
+    let literal = false;
+    for (const arg of args) {
+        if (!literal && arg === "--") {
+            if (command === "checkout" && targets.length === 0)
+                return undefined;
+            literal = true;
+        } else if (!literal && arg !== "-" && arg.startsWith("-")) {
+            if (
+                ![
+                    "-q",
+                    "--quiet",
+                    "-f",
+                    "--force",
+                    "--discard-changes",
+                    "-m",
+                    "--merge",
+                    "--guess",
+                    "--no-guess",
+                    "--ignore-other-worktrees",
+                    "--progress",
+                    "--no-progress",
+                    "--recurse-submodules",
+                    "--no-recurse-submodules",
+                    "--overwrite-ignore",
+                    "--no-overwrite-ignore",
+                ].includes(arg)
+            )
+                return undefined;
+        } else {
+            if (literal && command === "checkout") return undefined;
+            targets.push(arg);
+        }
+    }
+    return targets.length === 1 ? targets[0] : undefined;
+}
+
 function pushContext(args: string[]): {
     refspecs: string[];
     multiple: boolean;
@@ -204,10 +243,35 @@ async function currentBranch(
     }
 }
 
+async function isLocalBranch(
+    target: string,
+    env: NodeJS.ProcessEnv,
+    options: string[] = [],
+): Promise<boolean> {
+    if (target === "HEAD" || target.startsWith("refs/")) return false;
+    try {
+        const ref = await gitOutput(
+            [
+                ...options,
+                "rev-parse",
+                "--symbolic-full-name",
+                "--verify",
+                "--end-of-options",
+                target === "-" ? "@{-1}" : target,
+            ],
+            env,
+        );
+        return ref.trim().startsWith("refs/heads/");
+    } catch {
+        return false;
+    }
+}
+
 export class GitCliAdapter implements CliAdapter {
     constructor(
         private readonly readStagedPaths = stagedPaths,
         private readonly readCurrentBranch = currentBranch,
+        private readonly readIsLocalBranch = isLocalBranch,
     ) {}
 
     async normalize(
@@ -241,6 +305,25 @@ export class GitCliAdapter implements CliAdapter {
                 return {
                     ...capability("git", "create", "branch"),
                     constraints: { force: createForce },
+                };
+            }
+            const target = switchTarget(token, tail);
+            if (
+                target &&
+                (token === "switch" ||
+                    (await this.readIsLocalBranch(
+                        target,
+                        env,
+                        args.slice(0, index),
+                    )))
+            ) {
+                return {
+                    ...capability("git", "switch", "branch"),
+                    constraints: {
+                        force:
+                            forceRequested(tail) ||
+                            tail.includes("--discard-changes"),
+                    },
                 };
             }
             if (token === "worktree" || token === "remote") {
