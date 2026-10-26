@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.7.0](https://github.com/LucasNarlochZ/agent-iam/compare/core-v0.6.0...core-v0.7.0) (2026-10-26)
+
+
+### Features
+
+* show full commands and constraints in approval prompts ([23e746b](https://github.com/LucasNarlochZ/agent-iam/commit/23e746bca150b6b8dc314db509bc8204e4969669))
+* unify equivalent Git permissions and clarify approval prompts ([b7f75c7](https://github.com/LucasNarlochZ/agent-iam/commit/b7f75c7660b1b7299e2ddb2e019659f760b0ff96))
+
+
+### Bug Fixes
+
+* normalize equivalent Git branch creation commands ([911f90a](https://github.com/LucasNarlochZ/agent-iam/commit/911f90afe12bfb1cb621dfaed3b7309147fc0302))
+* normalize equivalent Git branch switching commands ([339dac8](https://github.com/LucasNarlochZ/agent-iam/commit/339dac83e1357ecaf370d2703a5e3e511b3b0402))
+* normalize equivalent Git worktree restoration commands ([bbbc036](https://github.com/LucasNarlochZ/agent-iam/commit/bbbc036106c1fcf482289b1cde4402db8fe553ca))
+* normalize Git index restoration with action-last capabilities ([0ff2c86](https://github.com/LucasNarlochZ/agent-iam/commit/0ff2c86d14739884a91685110e62363234fcc278))
+
 ## [0.6.0](https://github.com/LucasNarlochZ/agent-iam/compare/core-v0.5.0...core-v0.6.0) (2026-10-24)
 
 
