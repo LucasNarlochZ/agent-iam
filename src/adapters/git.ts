@@ -109,11 +109,11 @@ function forceRequested(args: string[]): boolean {
     return force || lease;
 }
 
-function worktreeRestoration(
+function restoration(
     command: string,
     args: string[],
-): boolean | undefined {
-    if (command !== "restore" && command !== "checkout") return undefined;
+): { destination: "worktree" | "index"; force: boolean } | undefined {
+    if (!["restore", "checkout", "reset"].includes(command)) return undefined;
     const before: string[] = [];
     const paths: string[] = [];
     const flags: string[] = [];
@@ -127,7 +127,9 @@ function worktreeRestoration(
             const source =
                 command === "restore" && /^(--source(=|$)|-s)/.test(arg);
             const valueOption =
-                source || /^(--conflict|--pathspec-from-file)(=|$)/.test(arg);
+                source ||
+                /^--pathspec-from-file(=|$)/.test(arg) ||
+                (command !== "reset" && /^--conflict(=|$)/.test(arg));
             if (valueOption) {
                 const value = arg.includes("=")
                     ? arg.slice(arg.indexOf("=") + 1)
@@ -141,23 +143,29 @@ function worktreeRestoration(
                 [
                     "-q",
                     "--quiet",
-                    "--progress",
-                    "--no-progress",
                     "-p",
                     "--patch",
-                    "--ours",
-                    "--theirs",
-                    "-m",
-                    "--merge",
-                    "--ignore-unmerged",
-                    "--ignore-skip-worktree-bits",
-                    "--recurse-submodules",
-                    "--no-recurse-submodules",
-                    "--overlay",
-                    "--no-overlay",
                     "--pathspec-file-nul",
                 ].includes(arg) ||
-                (command === "restore" && ["-W", "--worktree"].includes(arg)) ||
+                (command === "reset" &&
+                    ["--refresh", "--no-refresh"].includes(arg)) ||
+                (command !== "reset" &&
+                    [
+                        "--progress",
+                        "--no-progress",
+                        "--ours",
+                        "--theirs",
+                        "-m",
+                        "--merge",
+                        "--ignore-unmerged",
+                        "--ignore-skip-worktree-bits",
+                        "--recurse-submodules",
+                        "--no-recurse-submodules",
+                        "--overlay",
+                        "--no-overlay",
+                    ].includes(arg)) ||
+                (command === "restore" &&
+                    ["-W", "--worktree", "-S", "--staged"].includes(arg)) ||
                 (command === "checkout" && ["-f", "--force"].includes(arg))
             ) {
                 flags.push(arg);
@@ -169,8 +177,19 @@ function worktreeRestoration(
         }
     }
     if (command === "checkout" && before.length > 0) return undefined;
+    if (command === "reset") {
+        if (before.length > 1 || (paths.length === 0 && !pathspecFile))
+            return undefined;
+        return { destination: "index", force: false };
+    }
     if (before.length + paths.length === 0 && !pathspecFile) return undefined;
-    return forceRequested(flags);
+    const staged = flags.some((arg) => ["-S", "--staged"].includes(arg));
+    const worktree = flags.some((arg) => ["-W", "--worktree"].includes(arg));
+    if (staged && worktree) return undefined;
+    return {
+        destination: staged ? "index" : "worktree",
+        force: forceRequested(flags),
+    };
 }
 
 function switchTarget(command: string, args: string[]): string | undefined {
@@ -371,11 +390,11 @@ export class GitCliAdapter implements CliAdapter {
                     constraints: { force: createForce },
                 };
             }
-            const restoreForce = worktreeRestoration(token, tail);
-            if (restoreForce !== undefined) {
+            const restore = restoration(token, tail);
+            if (restore) {
                 return {
-                    ...capability("git", "worktree", "restore"),
-                    constraints: { force: restoreForce },
+                    ...capability("git", "restore", restore.destination),
+                    constraints: { force: restore.force },
                 };
             }
             const target = switchTarget(token, tail);

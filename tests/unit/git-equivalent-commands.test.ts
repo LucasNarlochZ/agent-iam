@@ -16,6 +16,78 @@ const adapter = new GitCliAdapter(
 
 describe("equivalent Git commands", () => {
     it.each([
+        ["restore", "--staged", "file.txt"],
+        ["restore", "-S", "file.txt"],
+        ["restore", "--staged", "--", "--worktree"],
+        ["restore", "--staged", "--source", "main", "file.txt"],
+        ["restore", "--staged", "--pathspec-from-file=paths.txt"],
+        ["reset", "HEAD", "--", "file.txt"],
+        ["reset", "--", "file.txt"],
+        ["reset", "--quiet", "HEAD", "--", "file.txt"],
+        ["reset", "main", "--", "file.txt"],
+        ["reset", "--pathspec-from-file", "paths.txt"],
+        ["reset", "HEAD", "--pathspec-from-file=paths.txt"],
+        ["reset", "--", "--hard"],
+    ])("normalizes index-only restoration %j", async (...args) => {
+        expect(await adapter.normalize(args)).toEqual({
+            service: "git",
+            action: "restore",
+            canonical: "git.index.restore",
+            constraints: { force: false },
+        });
+        expect(
+            gitService.capabilityDefinition("git.index.restore"),
+        ).toBeDefined();
+    });
+
+    it.each([
+        ["reset"],
+        ["reset", "HEAD"],
+        ["reset", "main"],
+        ["reset", "file.txt"],
+        ["reset", "--hard", "HEAD"],
+        ["reset", "--hard", "HEAD", "--", "file.txt"],
+        ["reset", "--soft", "HEAD", "--", "file.txt"],
+        ["reset", "--keep", "HEAD", "--", "file.txt"],
+        ["reset", "--merge", "HEAD", "--", "file.txt"],
+        ["reset", "HEAD", "--"],
+        ["reset", "--pathspec-from-file"],
+        ["restore", "--staged", "--worktree", "file.txt"],
+        ["restore", "--worktree", "--staged", "file.txt"],
+        ["restore", "-SW", "file.txt"],
+        ["restore", "--staged"],
+        ["restore", "--staged", "--source"],
+    ])(
+        "does not authorize broader or ambiguous operations as index restoration %j",
+        async (...args) => {
+            expect((await adapter.normalize(args)).canonical).not.toBe(
+                "git.index.restore",
+            );
+        },
+    );
+
+    it("authorizes unstaging without permitting worktree changes or branch resets", async () => {
+        const policy = parsePolicy("allow:\n  git.index.restore: true\n");
+        for (const [args, expected] of [
+            [["restore", "--staged", "file.txt"], "ALLOW"],
+            [["reset", "HEAD", "--", "file.txt"], "ALLOW"],
+            [["reset", "--hard", "HEAD"], "DENY"],
+            [["reset", "main"], "DENY"],
+            [["restore", "file.txt"], "DENY"],
+            [["restore", "--staged", "--worktree", "file.txt"], "DENY"],
+        ] as const) {
+            expect(
+                (
+                    await evaluatePolicy(
+                        policy,
+                        await adapter.normalize([...args]),
+                    )
+                ).decision,
+            ).toBe(expected);
+        }
+    });
+
+    it.each([
         ["restore", "file.txt"],
         ["restore", "--", "feature/auth"],
         ["restore", "--worktree", "file.txt"],
@@ -31,12 +103,12 @@ describe("equivalent Git commands", () => {
     ])("normalizes worktree restoration %j", async (...args) => {
         expect(await adapter.normalize(args)).toEqual({
             service: "git",
-            action: "worktree",
-            canonical: "git.restore.worktree",
+            action: "restore",
+            canonical: "git.worktree.restore",
             constraints: { force: false },
         });
         expect(
-            gitService.capabilityDefinition("git.restore.worktree"),
+            gitService.capabilityDefinition("git.worktree.restore"),
         ).toBeDefined();
     });
 
@@ -54,13 +126,13 @@ describe("equivalent Git commands", () => {
         "does not grant index changes through worktree restoration %j",
         async (...args) => {
             expect((await adapter.normalize(args)).canonical).not.toBe(
-                "git.restore.worktree",
+                "git.worktree.restore",
             );
         },
     );
 
     it("authorizes equivalent worktree restores without allowing index changes", async () => {
-        const policy = parsePolicy("allow:\n  git.restore.worktree: true\n");
+        const policy = parsePolicy("allow:\n  git.worktree.restore: true\n");
         for (const [args, expected] of [
             [["restore", "file.txt"], "ALLOW"],
             [["checkout", "--", "file.txt"], "ALLOW"],
