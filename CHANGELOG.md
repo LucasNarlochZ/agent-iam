@@ -45,6 +45,8 @@
 
 ### Changed
 
+- Show the complete intercepted CLI command and all normalized constraints in approval prompts, escaping terminal control characters
+- Require `git.branch.create`, `git.branch.switch`, `git.worktree.restore`, and `git.index.restore` for their supported equivalent Git command forms; existing broad subcommand rules no longer authorize these forms
 - Combine global and directory allow rules additively while preserving matching explicit denies in any applicable policy; narrower local allows no longer restrict broader grants
 - Split interactive approvals into decision, action scope, and policy destination questions; native OpenCode fallback approvals allow only one invocation without saving a rule
 - Replace `agentiam inspect` with `agentiam inspect policy`; bare `inspect` now displays subcommand usage, and policy inspection includes configured constraints
