@@ -109,6 +109,70 @@ function forceRequested(args: string[]): boolean {
     return force || lease;
 }
 
+function worktreeRestoration(
+    command: string,
+    args: string[],
+): boolean | undefined {
+    if (command !== "restore" && command !== "checkout") return undefined;
+    const before: string[] = [];
+    const paths: string[] = [];
+    const flags: string[] = [];
+    let literal = false;
+    let pathspecFile = false;
+    for (let index = 0; index < args.length; index++) {
+        const arg = args[index]!;
+        if (!literal && arg === "--") {
+            literal = true;
+        } else if (!literal && arg.startsWith("-")) {
+            const source =
+                command === "restore" && /^(--source(=|$)|-s)/.test(arg);
+            const valueOption =
+                source || /^(--conflict|--pathspec-from-file)(=|$)/.test(arg);
+            if (valueOption) {
+                const value = arg.includes("=")
+                    ? arg.slice(arg.indexOf("=") + 1)
+                    : source && arg.startsWith("-s") && arg.length > 2
+                      ? arg.slice(2)
+                      : args[++index];
+                if (!value || (value.startsWith("-") && value !== "-"))
+                    return undefined;
+                if (arg.startsWith("--pathspec-from-file")) pathspecFile = true;
+            } else if (
+                [
+                    "-q",
+                    "--quiet",
+                    "--progress",
+                    "--no-progress",
+                    "-p",
+                    "--patch",
+                    "--ours",
+                    "--theirs",
+                    "-m",
+                    "--merge",
+                    "--ignore-unmerged",
+                    "--ignore-skip-worktree-bits",
+                    "--recurse-submodules",
+                    "--no-recurse-submodules",
+                    "--overlay",
+                    "--no-overlay",
+                    "--pathspec-file-nul",
+                ].includes(arg) ||
+                (command === "restore" && ["-W", "--worktree"].includes(arg)) ||
+                (command === "checkout" && ["-f", "--force"].includes(arg))
+            ) {
+                flags.push(arg);
+            } else {
+                return undefined;
+            }
+        } else {
+            (literal ? paths : before).push(arg);
+        }
+    }
+    if (command === "checkout" && before.length > 0) return undefined;
+    if (before.length + paths.length === 0 && !pathspecFile) return undefined;
+    return forceRequested(flags);
+}
+
 function switchTarget(command: string, args: string[]): string | undefined {
     if (command !== "switch" && command !== "checkout") return undefined;
     const targets: string[] = [];
@@ -305,6 +369,13 @@ export class GitCliAdapter implements CliAdapter {
                 return {
                     ...capability("git", "create", "branch"),
                     constraints: { force: createForce },
+                };
+            }
+            const restoreForce = worktreeRestoration(token, tail);
+            if (restoreForce !== undefined) {
+                return {
+                    ...capability("git", "worktree", "restore"),
+                    constraints: { force: restoreForce },
                 };
             }
             const target = switchTarget(token, tail);

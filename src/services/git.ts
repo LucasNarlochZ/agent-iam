@@ -37,6 +37,7 @@ const gitActions = {
     reflog: [],
     reset: [],
     restore: [],
+    "restore.worktree": [],
     revert: [],
     rm: [],
     show: [],

@@ -15,6 +15,70 @@ const adapter = new GitCliAdapter(
 );
 
 describe("equivalent Git commands", () => {
+    it.each([
+        ["restore", "file.txt"],
+        ["restore", "--", "feature/auth"],
+        ["restore", "--worktree", "file.txt"],
+        ["restore", "-W", "file.txt"],
+        ["restore", "--source", "HEAD", "--", "file.txt"],
+        ["restore", "--source=HEAD", "file.txt"],
+        ["restore", "-sHEAD", "file.txt"],
+        ["restore", "--pathspec-from-file", "paths.txt"],
+        ["checkout", "--", "file.txt"],
+        ["checkout", "--quiet", "--", "file.txt"],
+        ["checkout", "--ours", "--", "file.txt"],
+        ["checkout", "--", "--force"],
+    ])("normalizes worktree restoration %j", async (...args) => {
+        expect(await adapter.normalize(args)).toEqual({
+            service: "git",
+            action: "worktree",
+            canonical: "git.restore.worktree",
+            constraints: { force: false },
+        });
+        expect(
+            gitService.capabilityDefinition("git.restore.worktree"),
+        ).toBeDefined();
+    });
+
+    it.each([
+        ["restore", "--staged", "file.txt"],
+        ["restore", "--staged", "--worktree", "file.txt"],
+        ["restore", "-SW", "file.txt"],
+        ["restore", "--source", "--staged", "file.txt"],
+        ["restore", "--conflict", "--worktree", "--staged", "file.txt"],
+        ["restore"],
+        ["checkout", "HEAD", "--", "file.txt"],
+        ["checkout", "feature/auth", "--", "file.txt"],
+        ["checkout", "-b", "feature/new", "--", "file.txt"],
+    ])(
+        "does not grant index changes through worktree restoration %j",
+        async (...args) => {
+            expect((await adapter.normalize(args)).canonical).not.toBe(
+                "git.restore.worktree",
+            );
+        },
+    );
+
+    it("authorizes equivalent worktree restores without allowing index changes", async () => {
+        const policy = parsePolicy("allow:\n  git.restore.worktree: true\n");
+        for (const [args, expected] of [
+            [["restore", "file.txt"], "ALLOW"],
+            [["checkout", "--", "file.txt"], "ALLOW"],
+            [["checkout", "HEAD", "--", "file.txt"], "DENY"],
+            [["restore", "--staged", "file.txt"], "DENY"],
+            [["restore", "--staged", "--worktree", "file.txt"], "DENY"],
+        ] as const) {
+            expect(
+                (
+                    await evaluatePolicy(
+                        policy,
+                        await adapter.normalize([...args]),
+                    )
+                ).decision,
+            ).toBe(expected);
+        }
+    });
+
     it("distinguishes local branches, tags, and filenames using Git", async () => {
         const repo = await mkdtemp(join(tmpdir(), "agentiam-checkout-"));
         const git = (...args: string[]) =>
